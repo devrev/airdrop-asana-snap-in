@@ -1,15 +1,24 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
-interface DummyExtractorState {
-  issues: { completed: boolean };
-  users: { completed: boolean };
-  attachemnts: { completed: boolean };
+export interface ExtractorState {
+  users: {
+    completed: boolean;
+    offset: string;
+  };
+  tasks: {
+    completed: boolean;
+    offset: string;
+    modifiedSince?: string;
+  };
+  attachments: {
+    completed: boolean;
+  };
 }
 
-const initialState: DummyExtractorState = {
-  issues: { completed: false },
-  users: { completed: false },
-  attachemnts: { completed: false },
+export const initialState: ExtractorState = {
+  users: { completed: false, offset: '' },
+  tasks: { completed: false, offset: '' },
+  attachments: { completed: false },
 };
 
 function getWorkerPerExtractionPhase(event: AirdropEvent) {
@@ -36,7 +45,7 @@ function getWorkerPerExtractionPhase(event: AirdropEvent) {
 const run = async (events: AirdropEvent[]) => {
   for (const event of events) {
     const file = getWorkerPerExtractionPhase(event);
-    await spawn<DummyExtractorState>({
+    await spawn<ExtractorState>({
       event,
       initialState,
       workerPath: file,

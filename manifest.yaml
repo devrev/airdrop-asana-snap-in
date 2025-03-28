@@ -1,44 +1,53 @@
 version: "2"
 
-name: Airdrop Asana Snap In
-description: Airdrop Asana Snap In
+name: Asana Connector
+description: Import your tasks from Asana.
 
 service_account:
-  display_name: Airdrop Asana Snap In Bot
+  display_name: Asana Bot
 
 functions:
   - name: extraction
-    description: Extraction function for Airdrop Asana Snap In
+    description: Extraction function for Asana Connector
   - name: loading
-    description: Loading function for $PRETTY_NAME%
+    description: Loading function for Asana Connector
   - name: install_initial_domain_mapping
     description: Create blueprint and install initial domain mapping
 
 keyring_types:
-  - id: example-connection
-    name: Example Connection
-    description: Example Connection
+  - id: asana-connection
+    name: Asana Connection
+    description: Asana Connection
     kind: "Secret"
-    is_subdomain: true
-    external_system_name: "Example" # external system name you are importing from. This system name should start with a capital letter.
+    is_subdomain: false
+    external_system_name: "Asana"
     secret_config:
-      secret_transform: ".token" # a JQ query
+      secret_transform: ".token" # no transformation
       fields:
         - id: token
           name: Token
-          description: Example API token
+          description: Asana API token
       token_verification:
-        url: https://app.devrev.ai/favicon.ico
+        url: https://app.asana.com/api/1.0/users/me
         method: GET
+        headers:
+          Authorization: "Bearer [API_KEY]"
+    organization_data:
+      type: "config"
+      url: "https://app.asana.com/api/1.0/workspaces"
+      method: "GET"
+      headers:
+        Authorization: "Bearer [API_KEY]"
+      response_jq: "{id: .data[0].gid, name: .data[0].name }"
 
 imports:
-  - slug: airdrop-asana-snap-in
-    display_name: Airdrop Asana Snap In
-    description: Airdrop Asana Snap In
+  - slug: airdrop-asana-extractor
+    display_name: Asana
+    description: Asana
     extractor_function: extraction
     loader_function: loading
     allowed_connection_types:
-      - example-connection
+      - asana-connection
 
 hooks:
   - type: activate
