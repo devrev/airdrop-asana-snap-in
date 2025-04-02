@@ -1,6 +1,6 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
-import { LoaderState } from '../asana/types';
+export type LoaderState = {};
 
 function getWorkerPerLoadingPhase(event: AirdropEvent) {
   let path;

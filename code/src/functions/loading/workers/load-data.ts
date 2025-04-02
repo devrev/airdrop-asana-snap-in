@@ -63,8 +63,20 @@ async function updateTask({
 
 processTask({
   task: async ({ adapter }) => {
-    const client = new AsanaClient(adapter.event);
-
+    // This section is responsible for loading data into an external system.
+    // It involves both creating and updating data. The process is abstracted
+    // such that the user only needs to provide specific functions for these operations.
+    //
+    // Key components include:
+    // - `itemTypesToLoad`: An array specifying the types of items to be loaded.
+    //     - Each entry includes:
+    //         - `itemType`: A string indicating the type of item, e.g., 'tasks'.
+    //         - `create`: A function to be called to create new items in the external system.
+    //         - `update`: A function to be called to update existing items in the external system.
+    //
+    // The `loadItemTypes` method of the adapter is used to streamline and manage
+    // these operations. It returns `reports` and `processed_files`, which provide
+    // feedback on the data loading process.
     const { reports, processed_files } = await adapter.loadItemTypes({
       itemTypesToLoad: [
         {
@@ -75,12 +87,16 @@ processTask({
       ],
     });
 
+    // After loading, an event is emitted to indicate that the data loading process
+    // has been completed, including any reports and processed file information.
     await adapter.emit(LoaderEventType.DataLoadingDone, {
       reports,
       processed_files,
     });
   },
   onTimeout: async ({ adapter }) => {
+    // In case of a timeout, maintain the current state and progress by
+    // posting the state and emitting a progress event with current reports and processed files.
     await adapter.postState();
     await adapter.emit(LoaderEventType.DataLoadingProgress, {
       reports: adapter.reports,

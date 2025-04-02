@@ -1,8 +1,9 @@
-import { axiosClient, ExternalSystemAttachment } from '@devrev/ts-adaas';
+import { AirdropEvent, axiosClient, ExternalSystemAttachment } from '@devrev/ts-adaas';
 import { AxiosResponse } from 'axios';
 
-import { AirdropEvent } from '@devrev/ts-adaas';
-import { ApiParams } from './types';
+type ApiParams = {
+  offset?: string;
+};
 
 export class AsanaClient {
   private apiBase: string = 'https://app.asana.com/api/1.0';
@@ -12,45 +13,42 @@ export class AsanaClient {
   public projectId: string;
 
   constructor(event: AirdropEvent) {
+    /* Credentials for connecting to Asana API can be found in event.payload.connection_data */
     this.apiKey = event.payload.connection_data.key;
-    this.orgId = event.payload.connection_data.org_id; // workspace id
+    this.orgId = event.payload.connection_data.org_id; // Asana workspace ID
     this.projectId = event.payload.event_context.external_sync_unit_id;
     this.defaultHeaders = {
       authorization: `Bearer ${this.apiKey}`,
     };
   }
 
-  async getTasks(params: ApiParams): Promise<AxiosResponse> {
-    const url = `${this.apiBase}/projects/${this.projectId}/tasks`;
+  /*** EXTRACTION ENDPOINTS ***/
 
-    return axiosClient.get(url, {
+  async getTasks(params: ApiParams): Promise<AxiosResponse> {
+    // Create the URL for the Asana API endpoint to get tasks.
+    const TASKS_URL = `${this.apiBase}/projects/${this.projectId}/tasks`;
+
+    // Define the number of tasks to retrieve per page.
+    const TASKS_LIMIT = 100;
+
+    // Get data about tasks:
+    // - name
+    // - description (html_notes)
+    // - created_at
+    // - modified_at
+    // - assignee
+    // - attachments
+    const TASKS_FIELDS =
+      'name,created_at,modified_at,assignee,attachments.name,attachments.size,attachments.download_url,html_notes';
+
+    return axiosClient.get(TASKS_URL, {
       headers: {
         ...this.defaultHeaders,
       },
       params: {
+        limit: TASKS_LIMIT,
+        opt_fields: TASKS_FIELDS,
         ...params,
-        opt_fields:
-          'name,created_at,modified_at,assignee,attachments.name,attachments.size,attachments.download_url,html_notes',
-      },
-    });
-  }
-
-  async createTask(body: any): Promise<AxiosResponse> {
-    const url = `https://app.asana.com/api/1.0/tasks`;
-
-    return axiosClient.post(url, body, {
-      headers: {
-        ...this.defaultHeaders,
-      },
-    });
-  }
-
-  async updateTask(taskId: string, body: any): Promise<AxiosResponse> {
-    const url = `https://app.asana.com/api/1.0/tasks/${taskId}`;
-
-    return axiosClient.put(url, body, {
-      headers: {
-        ...this.defaultHeaders,
       },
     });
   }
@@ -76,16 +74,21 @@ export class AsanaClient {
   }
 
   async getUsers(params: ApiParams): Promise<AxiosResponse> {
-    const url = `${this.apiBase}/users`;
+    // Create the URL for the Asana API endpoint to get tasks.
+    const USERS_URL = `${this.apiBase}/users`;
 
-    return axiosClient.get(url, {
+    // Define the number of tasks to retrieve per page.
+    const USERS_LIMIT = 100;
+
+    return axiosClient.get(USERS_URL, {
       headers: {
         ...this.defaultHeaders,
       },
       params: {
-        ...params,
+        limit: USERS_LIMIT,
         workspace: this.orgId,
         opt_fields: 'name,email',
+        ...params,
       },
     });
   }
@@ -109,6 +112,28 @@ export class AsanaClient {
         ...this.defaultHeaders,
         'Content-Type': 'multipart/form-data',
         Accept: 'application/json',
+      },
+    });
+  }
+
+  /*** LOADER ENDPOINTS ***/
+
+  async createTask(body: any): Promise<AxiosResponse> {
+    const url = `${this.apiBase}/tasks`;
+
+    return axiosClient.post(url, body, {
+      headers: {
+        ...this.defaultHeaders,
+      },
+    });
+  }
+
+  async updateTask(taskId: string, body: any): Promise<AxiosResponse> {
+    const url = `${this.apiBase}/tasks/${taskId}`;
+
+    return axiosClient.put(url, body, {
+      headers: {
+        ...this.defaultHeaders,
       },
     });
   }

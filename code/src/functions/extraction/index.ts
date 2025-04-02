@@ -1,5 +1,16 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
+// The 'offset' field is utilized for handling pagination. It helps in keeping track of
+// the current position in the data set so if sync run is interrupted, we can continue
+// where we left off.
+
+// The 'completed' field is a boolean flag that indicates whether the data extraction
+// process for a particular record type (users, tasks, or attachments) is finished.
+
+// The 'modifiedSince' field is used to store the date and time of the last modification
+// for tasks. This field is useful for performing incremental syncs, where
+// only records that have been changed after this date are retrieved.
+
 export interface ExtractorState {
   users: {
     completed: boolean;

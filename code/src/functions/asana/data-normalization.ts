@@ -1,5 +1,14 @@
 import { NormalizedAttachment, NormalizedItem } from '@devrev/ts-adaas';
 
+// Normalization functions transform data after extraction from an external system.
+// Each function receives the original item as a parameter.
+// The function should return a normalized item in the specific format defined by the
+// NormalizedItem and NormalizedAttachment types.
+// Only include the fields that need to be imported into DevRev in the returned object.
+// For more details on normalization rules, refer to the documentation here:
+// https://github.com/devrev/adaas-chef-cli/blob/main/docs/step_by_step.md#normalize-data
+
+// Timestamps should be formatted as RFC3399
 export function formatNormalizeTime(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toISOString();

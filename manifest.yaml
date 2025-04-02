@@ -1,6 +1,6 @@
 version: "2"
 
-name: Asana Connector
+name: Asana
 description: Import your tasks from Asana.
 
 service_account:
@@ -8,16 +8,16 @@ service_account:
 
 functions:
   - name: extraction
-    description: Extraction function for Asana Connector
+    description: Extraction function
   - name: loading
-    description: Loading function for Asana Connector
+    description: Loading function
   - name: install_initial_domain_mapping
     description: Create blueprint and install initial domain mapping
 
 keyring_types:
   - id: asana-connection
     name: Asana Connection
-    description: Asana Connection
+    description: Asana Connection through PAT token.
     kind: "Secret"
     is_subdomain: false
     external_system_name: "Asana"
@@ -26,7 +26,7 @@ keyring_types:
       fields:
         - id: token
           name: Token
-          description: Asana API token
+          description: Asana API PAT token
       token_verification:
         url: https://app.asana.com/api/1.0/users/me
         method: GET
