@@ -7,6 +7,7 @@ import {
 } from '@devrev/ts-adaas';
 
 import { AsanaClient } from '../../asana/client';
+import { denormalizeTask } from '../../asana/data-denormalization';
 
 async function createTask({
   item,
@@ -16,17 +17,10 @@ async function createTask({
   const client = new AsanaClient(event);
   const projectId = event.payload.event_context.external_sync_unit_id;
 
-  let body = {
-    data: {
-      projects: [projectId],
-      assignee: item.data.assignee?.external,
-      name: item.data.name || '',
-      notes: item.data.description?.content?.[0] ? item.data?.description?.content?.[0] : '',
-    },
-  };
+  const task = denormalizeTask(item, projectId);
 
   try {
-    const response = await client.createTask(body);
+    const response = await client.createTask(task);
 
     return { id: response.data.data.gid };
   } catch (error: any) {
@@ -43,16 +37,10 @@ async function updateTask({
   const client = new AsanaClient(event);
   const taskId = item.id.external as string;
 
-  const body = {
-    data: {
-      assignee: item.data.assignee?.external,
-      name: item.data.name || '',
-      notes: item.data.description?.content?.[0] ? item.data?.description?.content?.[0] : '',
-    },
-  };
+  const task = denormalizeTask(item);
 
   try {
-    const response = await client.updateTask(taskId, body);
+    const response = await client.updateTask(taskId, task);
 
     return { id: response.data.data.gid };
   } catch (error: any) {

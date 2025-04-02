@@ -134,10 +134,8 @@ async function extractUsers(
       // Extract the list of users from the response.
       const users = response.data?.data || [];
 
-      // If users are returned, push them to the repository designated for 'users' data.
-      if (users.length > 0) {
-        await adapter.getRepo('users')?.push(users);
-      }
+      // Push users to the repository designated for 'users' data.
+      await adapter.getRepo('users')?.push(users);
 
       // Check for a 'next_page' object in response to determine if further paging is necessary.
       const nextPage = response.data?.next_page;
@@ -186,10 +184,8 @@ async function extractTasks(
         item_url_field: createItemUrl(task.gid, asanaClient.projectId),
       }));
 
-      // If processed tasks are available, push them to the repository for 'tasks'.
-      if (newTasks.length > 0) {
-        await adapter.getRepo('tasks')?.push(newTasks);
-      }
+      // Push processed tasks to the repository for 'tasks'.
+      await adapter.getRepo('tasks')?.push(newTasks);
 
       // Process attachments by filtering tasks with attachments and mapping them to include parent task ID.
       const newAttachments = tasks
