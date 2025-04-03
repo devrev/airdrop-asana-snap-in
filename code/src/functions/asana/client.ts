@@ -13,7 +13,7 @@ export class AsanaClient {
   public projectId: string;
 
   constructor(event: AirdropEvent) {
-    /* Credentials for connecting to Asana API can be found in event.payload.connection_data */
+    // Keyring credentials for connecting to API can be found in event.payload.connection_data */
     this.apiKey = event.payload.connection_data.key;
     this.orgId = event.payload.connection_data.org_id; // Asana workspace ID
     this.projectId = event.payload.event_context.external_sync_unit_id;
@@ -26,7 +26,7 @@ export class AsanaClient {
 
   async getTasks(params: ApiParams): Promise<AxiosResponse> {
     // Create the URL for the Asana API endpoint to get tasks.
-    const TASKS_URL = `${this.apiBase}/projects/${this.projectId}/tasks`;
+    const url = `${this.apiBase}/projects/${this.projectId}/tasks`;
 
     // Define the number of tasks to retrieve per page.
     const TASKS_LIMIT = 100;
@@ -41,7 +41,7 @@ export class AsanaClient {
     const TASKS_FIELDS =
       'name,created_at,modified_at,assignee,attachments.name,attachments.size,attachments.download_url,html_notes';
 
-    return axiosClient.get(TASKS_URL, {
+    return axiosClient.get(url, {
       headers: {
         ...this.defaultHeaders,
       },
@@ -75,12 +75,12 @@ export class AsanaClient {
 
   async getUsers(params: ApiParams): Promise<AxiosResponse> {
     // Create the URL for the Asana API endpoint to get tasks.
-    const USERS_URL = `${this.apiBase}/users`;
+    const url = `${this.apiBase}/users`;
 
     // Define the number of tasks to retrieve per page.
     const USERS_LIMIT = 100;
 
-    return axiosClient.get(USERS_URL, {
+    return axiosClient.get(url, {
       headers: {
         ...this.defaultHeaders,
       },

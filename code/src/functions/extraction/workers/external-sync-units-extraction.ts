@@ -6,7 +6,7 @@ processTask({
   task: async ({ adapter }) => {
     const asanaClient = new AsanaClient(adapter.event);
 
-    // The function will pass projects from Asana as external sync units.
+    // The function passes projects from Asana as external sync units.
     // External sync units must be passed as an array of objects that conform
     // to the `ExternalSyncUnit` interface.
     try {

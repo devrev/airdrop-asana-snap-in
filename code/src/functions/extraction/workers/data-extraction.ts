@@ -53,8 +53,8 @@ processTask<ExtractorState>({
 
     // Initialize the state for incremental synchronization:
     //
-    // - This is necessary to ensure that only new or updated data is extracted,
-    //   avoiding re-processing data that was successfully extracted in previous syncs.
+    // - This helps ensure that only new or updated data from external system is extracted,
+    //   preventing the re-processing of data that was successfully extracted in earlier syncs.
     // - The `offset` is set to an empty string ('') to start pagination from the beginning.
     // - The `modifiedDate` is set to the timestamp of the last successful sync,
     //   which we will use to filter items when querying the Asana API,
