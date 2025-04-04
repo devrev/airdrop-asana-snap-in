@@ -1,6 +1,6 @@
 import { installInitialDomainMapping } from '@devrev/ts-adaas';
 
-import initialDomainMapping from '../external-system/initial_domain_mapping.json';
+import initialDomainMapping from '../asana/initial_domain_mapping.json';
 
 const run = async (events: any[]) => {
   for (const event of events) {

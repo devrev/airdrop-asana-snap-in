@@ -1,7 +1,7 @@
 {
-  "name": "adaas-connector",
+  "name": "airdrop-asana-snap-in",
   "version": "1.1.6",
-  "description": "DevRev ADaaS (Airdrop-as-a-service) Connector",
+  "description": "DevRev Asana Connector",
   "main": "./dist/index.js",
   "scripts": {
     "lint": "eslint --ignore-path .gitignore .",

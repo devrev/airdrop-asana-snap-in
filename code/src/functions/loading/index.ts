@@ -1,6 +1,6 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
-import { LoaderState } from '../external-system/types';
+export type LoaderState = {};
 
 function getWorkerPerLoadingPhase(event: AirdropEvent) {
   let path;
@@ -8,6 +8,10 @@ function getWorkerPerLoadingPhase(event: AirdropEvent) {
     case EventType.StartLoadingData:
     case EventType.ContinueLoadingData:
       path = __dirname + '/workers/load-data';
+      break;
+    case EventType.StartLoadingAttachments:
+    case EventType.ContinueLoadingAttachments:
+      path = __dirname + '/workers/load-attachments';
       break;
   }
   return path;
