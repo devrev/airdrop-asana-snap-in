@@ -1,7 +1,7 @@
 version: "2"
 
 name: Asana
-description: Import your tasks from Asana.
+description: Import users, tasks and attachments from Asana.
 
 service_account:
   display_name: Asana Bot

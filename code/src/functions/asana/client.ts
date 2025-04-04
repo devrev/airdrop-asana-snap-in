@@ -13,7 +13,7 @@ export class AsanaClient {
   public projectId: string;
 
   constructor(event: AirdropEvent) {
-    // Keyring credentials for connecting to API can be found in event.payload.connection_data */
+    // Keyring credentials for connecting to API can be found in event.payload.connection_data.
     this.apiKey = event.payload.connection_data.key;
     this.orgId = event.payload.connection_data.org_id; // Asana workspace ID
     this.projectId = event.payload.event_context.external_sync_unit_id;
@@ -93,6 +93,7 @@ export class AsanaClient {
     });
   }
 
+  // Create a new attachment in Asana from the item url.
   async createAttachment(item: ExternalSystemAttachment, taskId: string): Promise<AxiosResponse> {
     const url = `${this.apiBase}/attachments`;
 

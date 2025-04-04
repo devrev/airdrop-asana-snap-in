@@ -2,18 +2,9 @@
 
 ## What it Does
 
-- The Asana snap-in serves as a connector between Asana and DevRev.
-- Created as an example of a working snap-in, it aims to assist developers in building their own snap-ins or extending this one.
+Asana snap-in acts as a connector between Asana and DevRev. It was created as an example of a functional snap-in and is designed to help developers create their own snap-ins or extend the existing one.
 
-Asana snap-in allows running a _forward sync_ (Asana -> DevRev):
-
-- It can extract tasks, task attachments, and users from Asana and import them into DevRev.
-
-And a _reverse sync_:
-
-- It can extract issues and issue attachments from DevRev and import them into Asana.
-
-This snap-in also supports running incremental syncs and handling Asana API rate limits.
+It enables a forward sync, where it extracts tasks, task attachments, and users from Asana and imports them into DevRev. Additionally, it supports incremental and reverse sync, allowing the extraction of issues and attachments from DevRev to be imported into Asana.
 
 ### Mapping Details
 

@@ -1,7 +1,7 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
 // This interface defines the adapter state used for data extraction, ensuring that the 
-// process can be resumed and managed effectively between snap-in invokations.
+// process can be resumed and managed effectively between snap-in invocations.
 // The 'offset' field is utilized for handling pagination. It helps in keeping track of
 // the current position in the data set so if a sync run is interrupted, we can continue
 // where we left off.

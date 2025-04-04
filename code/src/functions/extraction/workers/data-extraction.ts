@@ -43,12 +43,29 @@ const repos = [
   },
 ];
 
+export interface ItemTypeToExtract {
+  name: 'users' | 'tasks';
+  extractFunction: (asanaClient: AsanaClient, ...params: any[]) => any;
+}
+
+// List of item types to extract from Asana.
+const itemTypesToExtract: ItemTypeToExtract[] = [
+  {
+    name: 'users',
+    extractFunction: extractUsers
+  },
+  {
+    name: 'tasks',
+    extractFunction: extractTasks
+  }
+];
+
 processTask<ExtractorState>({
   task: async ({ adapter }) => {
     // Initialize repos for data extraction.
     adapter.initializeRepos(repos);
 
-    // Initialize Asana Client
+    // Initialize Asana Client.
     const asanaClient = new AsanaClient(adapter.event);
 
     // Initialize the state for incremental synchronization:
@@ -67,16 +84,13 @@ processTask<ExtractorState>({
       adapter.state.tasks.modifiedSince = adapter.state.lastSuccessfulSyncStarted;
     }
 
-    // The extractData function handles the extraction of data from Asana. It takes two parameters:
-    // - `type`: A string indicating the type of data to extract ('users' or 'tasks').
-    // - `extractFunction`: A function reference specific to the type of data being extracted.
-    async function extractData(type: 'users' | 'tasks', extractFunction: Function) {
+    for (const itemType of itemTypesToExtract) {
       // Check if the extraction for the specified type is already completed.
-      if (adapter.state[type].completed) {
-        console.log(`Skipping extracting ${type} as it's already marked as complete.`);
+      if (adapter.state[itemType.name].completed) {
+        console.log(`Skipping extracting ${itemType.name} as it's already marked as complete.`);
       } else {
         // Perform the data extraction using the provided function.
-        const { delay, error } = await extractFunction(asanaClient, adapter);
+        const { delay, error } = await itemType.extractFunction(asanaClient, adapter);
 
         if (delay) {
           // Handle any delay in extraction:
@@ -91,30 +105,23 @@ processTask<ExtractorState>({
         } else {
           // If extraction is successful with no delays or errors,
           // mark the extraction as complete in the adapter's state.
-          adapter.state[type].completed = true;
-          console.log(`Finished extracting ${type}. Marked as complete.`);
+          adapter.state[itemType.name].completed = true;
+          console.log(`Finished extracting ${itemType.name}. Marked as complete.`);
 
           // Special case for 'tasks': Also mark related 'attachments' as complete,
           // because they are extracted simultaneously with tasks.
-          if (type === 'tasks') {
+          if (itemType.name === 'tasks') {
             adapter.state['attachments'].completed = true;
           }
         }
       }
     }
 
-    // Extract users and tasks
-    await extractData('users', extractUsers);
-    await extractData('tasks', extractTasks);
-
     await adapter.emit(ExtractorEventType.ExtractionDataDone);
   },
 
   onTimeout: async ({ adapter }) => {
-    await adapter.postState();
-    await adapter.emit(ExtractorEventType.ExtractionDataProgress, {
-      progress: 50,
-    });
+    await adapter.emit(ExtractorEventType.ExtractionDataProgress);
   },
 });
 
