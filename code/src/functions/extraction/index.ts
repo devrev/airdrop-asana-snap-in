@@ -1,5 +1,7 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
+import initialDomainMapping from '../asana/initial_domain_mapping.json';
+
 // This interface defines the adapter state used for data extraction, ensuring that the 
 // process can be resumed and managed effectively between snap-in invocations.
 // The 'offset' field is utilized for handling pagination. It helps in keeping track of
@@ -44,10 +46,6 @@ function getWorkerPerExtractionPhase(event: AirdropEvent) {
     case EventType.ExtractionDataContinue:
       path = __dirname + '/workers/data-extraction';
       break;
-    case EventType.ExtractionAttachmentsStart:
-    case EventType.ExtractionAttachmentsContinue:
-      path = __dirname + '/workers/attachments-extraction';
-      break;
   }
   return path;
 }
@@ -59,6 +57,7 @@ const run = async (events: AirdropEvent[]) => {
       event,
       initialState,
       workerPath: file,
+      initialDomainMapping,
     });
   }
 };

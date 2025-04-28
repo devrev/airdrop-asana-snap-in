@@ -80,8 +80,10 @@ processTask<ExtractorState>({
       adapter.event.payload.event_type === EventType.ExtractionDataStart &&
       adapter.event.payload.event_context.mode === SyncMode.INCREMENTAL
     ) {
-      adapter.state = initialState;
+      adapter.state.users = initialState.users;
+      adapter.state.tasks = initialState.tasks;
       adapter.state.tasks.modifiedSince = adapter.state.lastSuccessfulSyncStarted;
+      adapter.state.attachments = initialState.attachments;
     }
 
     for (const itemType of itemTypesToExtract) {
