@@ -33,6 +33,7 @@ processTask({
             id: project.gid,
             name: project.name,
             description: project.resource_type,
+            item_type: 'tasks',
             ...(itemCount !== undefined && { item_count: itemCount }), // Conditionally include item_count if defined
           };
         })

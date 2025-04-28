@@ -11,8 +11,6 @@ functions:
     description: Extraction function
   - name: loading
     description: Loading function
-  - name: install_initial_domain_mapping
-    description: Create blueprint and install initial domain mapping
 
 keyring_types:
   - id: asana-connection
@@ -49,6 +47,3 @@ imports:
     allowed_connection_types:
       - asana-connection
 
-hooks:
-  - type: activate
-    function: install_initial_domain_mapping

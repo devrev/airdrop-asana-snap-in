@@ -1,5 +1,7 @@
 import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
 
+import initialDomainMapping from '../asana/initial_domain_mapping.json';
+
 export type LoaderState = {};
 
 function getWorkerPerLoadingPhase(event: AirdropEvent) {
@@ -24,6 +26,7 @@ const run = async (events: AirdropEvent[]) => {
       event,
       initialState: {},
       workerPath: file,
+      initialDomainMapping
     });
   }
 };
