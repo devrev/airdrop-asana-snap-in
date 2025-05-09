@@ -144,16 +144,18 @@ async function extractUsers(
       const users = response.data?.data || [];
 
       // Push users to the repository designated for 'users' data.
-      await adapter.getRepo('users')?.push(users);
+      const wasPushSuccessful = await adapter.getRepo('users')?.push(users);
 
       // Check for a 'next_page' object in response to determine if further paging is necessary.
       const nextPage = response.data?.next_page;
 
-      // Update the offset for the next page if available. If not, stop the paging loop.
-      if (nextPage) {
-        adapter.state.users.offset = nextPage.offset;
-      } else {
-        hasNextPage = false;
+      if (wasPushSuccessful) {
+        if (nextPage) {
+          // Update the offset for the next page if available. If not, stop the paging loop.
+          adapter.state.users.offset = nextPage.offset;
+        } else {
+          hasNextPage = false;
+        }
       }
     }
 
@@ -194,7 +196,11 @@ async function extractTasks(
       }));
 
       // Push processed tasks to the repository for 'tasks'.
-      await adapter.getRepo('tasks')?.push(newTasks);
+      const wasTasksPushSuccessful = await adapter.getRepo('tasks')?.push(newTasks);
+
+      if (!wasTasksPushSuccessful) {
+        continue;
+      }
 
       // Process attachments by filtering tasks with attachments and mapping them to include parent task ID.
       const newAttachments = tasks
@@ -207,8 +213,9 @@ async function extractTasks(
         );
 
       // If processed attachments are available, push them to the repository for 'attachments'.
-      if (newAttachments.length > 0) {
-        await adapter.getRepo('attachments')?.push(newAttachments);
+      const wasAttachmentsPushSuccessful = await adapter.getRepo('attachments')?.push(newAttachments);
+      if (!wasAttachmentsPushSuccessful) {
+        continue;
       }
 
       // Update the offset for the next page if available, otherwise stop the paging loop.
