@@ -63,7 +63,6 @@ import {
       }
     },
     onTimeout: async ({ adapter }) => {
-      await adapter.postState();
       await adapter.emit(ExtractorEventType.ExtractionAttachmentsProgress);
     },
   });
