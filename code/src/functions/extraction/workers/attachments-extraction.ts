@@ -8,8 +8,6 @@ import {
     serializeAxiosError,
   } from '@devrev/ts-adaas';
   
-  // TODO: Replace with function for fetching attachment streams from the
-  // external system. This function should return a stream of the attachment data.
   async function getFileStream({
     item,
   }: ExternalSystemAttachmentStreamingParams): Promise<ExternalSystemAttachmentStreamingResponse> {
@@ -43,11 +41,10 @@ import {
   
   processTask({
     task: async ({ adapter }) => {
-        console.log('Custom attachment extraction worker started');
       try {
         const response = await adapter.streamAttachments({
           stream: getFileStream,
-          batchSize: 50,
+          batchSize: 50, // Stream 50 attachments at a time
         });
   
         if (response?.delay) {
