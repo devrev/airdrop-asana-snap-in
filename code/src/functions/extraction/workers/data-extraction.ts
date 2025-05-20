@@ -68,22 +68,33 @@ processTask<ExtractorState>({
     // Initialize Asana Client.
     const asanaClient = new AsanaClient(adapter.event);
 
-    // Initialize the state for incremental synchronization:
-    //
-    // - This helps ensure that only new or updated data from external system is extracted,
-    //   preventing the re-processing of data that was successfully extracted in earlier syncs.
-    // - The `offset` is set to an empty string ('') to start pagination from the beginning.
-    // - The `modifiedDate` is set to the timestamp of the last successful sync,
-    //   which we will use to filter items when querying the Asana API,
-    //   ensuring that only data changed after this date is retrieved.
-    if (
-      adapter.event.payload.event_type === EventType.ExtractionDataStart &&
-      adapter.event.payload.event_context.mode === SyncMode.INCREMENTAL
-    ) {
-      adapter.state.users = initialState.users;
-      adapter.state.tasks = initialState.tasks;
-      adapter.state.tasks.modifiedSince = adapter.state.lastSuccessfulSyncStarted;
-      adapter.state.attachments = initialState.attachments;
+    const { reset_extraction, extract_from } = adapter.event.payload;
+
+    // The start of a new sync.
+    if (adapter.event.payload.event_type === EventType.ExtractionDataStart) {
+      // If `extract_from` is provided, it indicates a specific timestamp from which to start the extraction (both inital or incremental).
+      if (extract_from) {
+        console.log(`Starting extraction from given timestamp: ${extract_from}.`);
+        // Set the `modifiedSince` state to the provided timestamp for all item types.
+        adapter.state.tasks.modifiedSince = extract_from;
+      }
+
+      // If this is an incremental sync, we need to reset the state for the item types.
+      if (adapter.event.payload.event_context.mode === SyncMode.INCREMENTAL) {
+        adapter.state.users = initialState.users;
+        adapter.state.tasks = initialState.tasks;
+        adapter.state.attachments = initialState.attachments;
+
+        // If `reset_extraction` is true, it indicates that the extraction should start from extract_from (if provided)
+        // or from the beginning (if extract_from is not provided).
+        if (reset_extraction === 'true') {
+          console.log(`reset_extraction is true. Starting extraction from provided timestamp (${extract_from}) or from the beginning.`);
+        // If reset_extraction is false or not provided, it should use the lastSuccessfulSyncStarted timestamp to get only the new or updated data.
+        } else {
+          console.log(`Starting extraction from lastSuccessfulSyncStarted: (${adapter.state.lastSuccessfulSyncStarted}).`);
+          adapter.state.tasks.modifiedSince = adapter.state.lastSuccessfulSyncStarted;
+        }
+      }
     }
 
     for (const itemType of itemTypesToExtract) {
