@@ -1,29 +1,30 @@
 ## Summary
-<!-- Provide a brief description of the changes introduced by this PR -->
+<!-- Provide a brief description of the story behind this PR, as if explaining
+     to a non-technical person. Or to an LLM so it can learn from it for
+     future (autonomous) code improvements. Feel free to point to a deeper
+     design doc, if applicable.
+-->
 
-## Related Issues
-<!-- List any related issues that this PR addresses or fixes -->
-- work-item:
+## Connected Issues
+<!-- Have you cared to connect this PR to a work item in DevRev, so that we
+     can understand future routing and attribution?
+-->
+- #ISS-
+- ...
 
-## Type of Change
+## Craftsmanship, Integrity, and Devil’s Advocacy
 <!-- Mark the appropriate option with an "x" -->
-- [ ] Change doesn't affect products or customers
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] Non-breaking change (the new functionality and code refactor do not require a migration strategy)
-- [ ] Breaking change (fix or feature that will require a migration plan for data or other services)
-- [ ] Documentation/comment update
-- [ ] Other (please describe):
+- [ ] Testing: Negative test cases: null or default values, crash and fault injection tests
+- [ ] Testing: Boundary conditions: rolling upgrades, denial-of-service, etc.
+- [ ] Testing: Fixing a few existing — flaky or permanently-broken — test cases
+- [ ] Observing: Detailed error codes so machines can understand
+- [ ] Observing: Adding superior metrics for future debugging
+- [ ] Observing: Tracing the hairiest pathways for field serviceability
+- [ ] Training: KnowledgeOps update? So AI always works.
 
-## Testing Procedure
-<!-- Outline the testing process for this PR that others can follow locally.  -->
-- 
+## Story of the craft
+<!-- *“Wisdom is knowing the right path to take. Integrity is taking it.”*
 
-## Checklist
-<!-- Mark the appropriate options with an "x" -->
-- [ ] I used generative AI to generate this PR
-- [ ] I have self-reviewed my code for clarity and correctness
-- [ ] I have added or updated comments for complex or non-obvious logic in my code
-- [ ] I have updated relevant documentation (e.g., README, code docs)
-- [ ] My changes do not introduce new warnings or errors
-- [ ] I have added or updated tests to cover new or changed functionality
-- [ ] All tests pass locally with my changes applied
+    Show-n-tell the story of testing, observing, or training from above.
+    Take your time. Your stories will teach others the craft.
+-->
