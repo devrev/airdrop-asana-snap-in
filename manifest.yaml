@@ -46,4 +46,5 @@ imports:
     loader_function: loading
     allowed_connection_types:
       - asana-connection
-
+    capabilities:
+      - TIME_SCOPED_SYNCS
