@@ -1,0 +1,9 @@
+dev:
+  marketplace_listing_slug: asana-extractor
+  snap_in_package_slug: adaas-asana-import
+qa:
+  marketplace_listing_slug: asana-extractor
+  snap_in_package_slug: adaas-asana-import
+prod:
+  marketplace_listing_slug: asana-extractor
+  snap_in_package_slug: adaas-asana-import

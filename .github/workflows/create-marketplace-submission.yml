@@ -1,0 +1,20 @@
+name: Create marketplace submission
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  create-marketplace-submission:
+    name: Create marketplace submission
+    if: contains(github.event.pull_request.labels.*.name, 'marketplace-submission') && github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create marketplace submission
+        uses: devrev/github-actions/create-marketplace-submission@create-marketplace-submission-v0.1.10
+        with:
+          code_ref_url: ${{ github.event.pull_request.url }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          read_actions_token: ${{ secrets.READ_GITHUB_ACTIONS_RELEASES }}
+        env:
+          DEVREV_PAT: ${{ secrets.DEVREV_DEV_PAT }}
