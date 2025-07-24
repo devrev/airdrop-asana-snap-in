@@ -1,9 +1,9 @@
 dev:
-  marketplace_listing_slug: asana-extractor
-  snap_in_package_slug: adaas-asana-import
+  marketplace_listing_slug: airdrop-asana-snap-in
+  snap_in_package_slug: airdrop-asana-snap-in
 qa:
-  marketplace_listing_slug: asana-extractor
-  snap_in_package_slug: adaas-asana-import
+  marketplace_listing_slug: airdrop-asana-snap-in
+  snap_in_package_slug: airdrop-asana-snap-in
 prod:
-  marketplace_listing_slug: asana-extractor
-  snap_in_package_slug: adaas-asana-import
+  marketplace_listing_slug: airdrop-asana-snap-in
+  snap_in_package_slug: airdrop-asana-snap-in

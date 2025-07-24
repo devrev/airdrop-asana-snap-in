@@ -3,11 +3,12 @@ name: Create marketplace submission
 on:
   pull_request:
     types: [closed]
+    branches: [main]
 
 jobs:
   create-marketplace-submission:
     name: Create marketplace submission
-    if: contains(github.event.pull_request.labels.*.name, 'marketplace-submission') && github.event.pull_request.merged
+    if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     steps:
       - name: Create marketplace submission
