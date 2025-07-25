@@ -68,7 +68,7 @@ processTask<ExtractorState>({
     // Initialize Asana Client.
     const asanaClient = new AsanaClient(adapter.event);
 
-    const { reset_extraction, extract_from } = adapter.event.payload.event_context;
+    const { reset_extract_from, extract_from } = adapter.event.payload.event_context;
 
     // The start of a new sync.
     if (adapter.event.payload.event_type === EventType.ExtractionDataStart) {
@@ -85,11 +85,11 @@ processTask<ExtractorState>({
         adapter.state.tasks = initialState.tasks;
         adapter.state.attachments = initialState.attachments;
 
-        // If `reset_extraction` is true, it indicates that the extraction should start from extract_from (if provided)
+        // If `reset_extract_from` is true, it indicates that the extraction should start from extract_from (if provided)
         // or from the beginning (if extract_from is not provided).
-        if (reset_extraction) {
-          console.log(`reset_extraction is true. Starting extraction from provided timestamp (${extract_from}) or from the beginning.`);
-        // If reset_extraction is false or not provided, it should use the lastSuccessfulSyncStarted timestamp to get only the new or updated data.
+        if (reset_extract_from) {
+          console.log(`reset_extract_from is true. Starting extraction from provided timestamp (${extract_from}) or from the beginning.`);
+        // If reset_extract_from is false or not provided, it should use the lastSuccessfulSyncStarted timestamp to get only the new or updated data.
         } else {
           console.log(`Starting extraction from lastSuccessfulSyncStarted: (${adapter.state.lastSuccessfulSyncStarted}).`);
           adapter.state.tasks.modifiedSince = adapter.state.lastSuccessfulSyncStarted;
