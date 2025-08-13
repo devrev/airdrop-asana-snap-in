@@ -1,0 +1,41 @@
+version: 2.1
+
+jobs:
+  build_and_security:
+    docker:
+      - image: cimg/node:20.x
+    working_directory: ~/project/code
+    steps:
+      - checkout:
+          path: ~/project
+
+      - run:
+          name: Install dependencies
+          command: npm ci
+
+      - run:
+          name: Build project
+          command: npm run build
+
+      - run:
+          name: Run Snyk dependency vulnerability scan
+          command: |
+            npx snyk auth $SNYK_TOKEN
+            npx snyk test --all-projects
+
+      - run:
+          name: Run Snyk code vulnerability scan
+          command: |
+            npx snyk auth $SNYK_TOKEN
+            npx snyk code test
+
+workflows:
+  version: 2
+  security_pipeline:
+    jobs:
+      - build_and_security:
+          context:
+            - snyk-integration
+          filters:
+            branches:
+              only: main
