@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   build_and_security:
     docker:
-      - image: cimg/node:20.x
+      - image: cimg/node:20.19
     working_directory: ~/project/code
     steps:
       - checkout:
