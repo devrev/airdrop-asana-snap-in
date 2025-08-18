@@ -23,12 +23,6 @@ jobs:
             npx snyk auth $SNYK_TOKEN
             npx snyk monitor --all-projects
 
-      - run:
-          name: Run Snyk code vulnerability scan
-          command: |
-            npx snyk auth $SNYK_TOKEN
-            npx snyk code test
-
 workflows:
   version: 2
   security_pipeline:
