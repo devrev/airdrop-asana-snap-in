@@ -5,11 +5,11 @@
 export function denormalizeTask(item: any, projectId?: string) {
   const data: any = {};
 
-  if (item.data?.name) {
+  if (item.data?.name != null) {
     data.name = item.data?.name || '';
   }
 
-  if (item.data?.assignee) {
+  if (item.data?.assignee != null) {
     data.assignee = item.data.assignee.external || null;
     if ('external' in item.data.assignee) {
       data.assignee = item.data.assignee.external;
@@ -19,11 +19,11 @@ export function denormalizeTask(item: any, projectId?: string) {
     }
   }
 
-  if (item.data?.description) {
+  if (item.data?.description != null) {
     data.notes = item.data?.description?.content?.[0] || '';
   }
   
-  if (projectId) {
+  if (projectId != null) {
     data.projects = [projectId];
   }
 
