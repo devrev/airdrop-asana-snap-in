@@ -10,7 +10,6 @@ export function denormalizeTask(item: any, projectId?: string) {
   }
 
   if (item.data?.assignee != null) {
-    data.assignee = item.data.assignee.external || null;
     if ('external' in item.data.assignee) {
       data.assignee = item.data.assignee.external;
     } else {
