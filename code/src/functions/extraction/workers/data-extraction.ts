@@ -52,17 +52,17 @@ export interface ItemTypeToExtract {
 const itemTypesToExtract: ItemTypeToExtract[] = [
   {
     name: 'users',
-    extractFunction: extractUsers
+    extractFunction: extractUsers,
   },
   {
     name: 'tasks',
-    extractFunction: extractTasks
-  }
+    extractFunction: extractTasks,
+  },
 ];
 
 processTask<ExtractorState>({
   task: async ({ adapter }) => {
-    // Initialize repos for data extraction.
+    // Initialize repos for the data extraction.
     adapter.initializeRepos(repos);
 
     // Initialize Asana Client.
@@ -88,10 +88,14 @@ processTask<ExtractorState>({
         // If `reset_extract_from` is true, it indicates that the extraction should start from extract_from (if provided)
         // or from the beginning (if extract_from is not provided).
         if (reset_extract_from) {
-          console.log(`reset_extract_from is true. Starting extraction from provided timestamp (${extract_from}) or from the beginning.`);
-        // If reset_extract_from is false or not provided, it should use the lastSuccessfulSyncStarted timestamp to get only the new or updated data.
+          console.log(
+            `reset_extract_from is true. Starting extraction from provided timestamp (${extract_from}) or from the beginning.`
+          );
+          // If reset_extract_from is false or not provided, it should use the lastSuccessfulSyncStarted timestamp to get only the new or updated data.
         } else {
-          console.log(`Starting extraction from lastSuccessfulSyncStarted: (${adapter.state.lastSuccessfulSyncStarted}).`);
+          console.log(
+            `Starting extraction from lastSuccessfulSyncStarted: (${adapter.state.lastSuccessfulSyncStarted}).`
+          );
           adapter.state.tasks.modifiedSince = adapter.state.lastSuccessfulSyncStarted;
         }
       }
