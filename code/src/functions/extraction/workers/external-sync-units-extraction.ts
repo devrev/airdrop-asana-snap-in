@@ -39,7 +39,7 @@ processTask({
         })
       );
 
-      // Emit an event to signal the completion of external sync unit extraction
+      // Emit an event to signal the completion of external sync units extraction
       // and pass the extracted external sync units.
       await adapter.emit(ExtractorEventType.ExtractionExternalSyncUnitsDone, {
         external_sync_units: externalSyncUnits,
