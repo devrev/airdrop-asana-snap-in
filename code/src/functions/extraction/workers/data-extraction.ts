@@ -211,7 +211,7 @@ async function extractTasks(
       // Push processed tasks to the repository for 'tasks'.
       await adapter.getRepo('tasks')?.push(newTasks);
 
-      // Process attachments by filtering tasks with attachments and mapping them to include parent task ID.
+      // Process attachments by filtering tasks that have attachments and mapping them to include parent task ID.
       const newAttachments = tasks
         .filter((task: any) => task.attachments && task.attachments.length > 0)
         .flatMap((task: any) =>
