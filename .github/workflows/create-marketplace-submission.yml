@@ -17,7 +17,7 @@ jobs:
         uses: devrev/github-actions/create-marketplace-submission@create-marketplace-submission-v0.1.12
         with:
           code_ref_url: ${{ github.event.pull_request.url }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          read_actions_token: ${{ secrets.READ_GITHUB_ACTIONS_RELEASES }}
+          github_token: ${{ secrets.GH_SVC_FGT }}
+          read_actions_token: ${{ secrets.GH_SVC_FGT }}
         env:
           DEVREV_PAT: ${{ secrets.DEVREV_DEV_PAT }}

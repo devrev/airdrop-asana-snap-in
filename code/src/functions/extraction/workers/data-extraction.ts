@@ -202,7 +202,7 @@ async function extractTasks(
       const tasks = response.data?.data || [];
       const nextPage = response.data?.next_page;
 
-      // Process tasks by mapping each one to include an item URL.
+      // Process tasks by mapping each one to include an item URL field.
       const newTasks = tasks.map((task: any) => ({
         ...task,
         item_url_field: createItemUrl(task.gid, asanaClient.projectId),
