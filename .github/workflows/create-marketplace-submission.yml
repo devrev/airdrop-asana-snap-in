@@ -19,10 +19,9 @@ jobs:
           repository: devrev/github-actions
           ref: create-marketplace-submission-v0.1.12
           token: ${{ secrets.GH_SVC_FGT }}
-          path: ./.github/actions/devrev
-
+          path: /tmp/devrev-actions
       - name: Run marketplace submission action
-        uses: ./.github/actions/devrev/create-marketplace-submission
+        uses: /tmp/devrev-actions/create-marketplace-submission
         with:
           code_ref_url: ${{ github.event.pull_request.url }}
           github_token: ${{ secrets.GH_SVC_FGT }}
