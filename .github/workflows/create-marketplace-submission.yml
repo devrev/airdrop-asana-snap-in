@@ -13,15 +13,8 @@ jobs:
     if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout private actions repo
-        uses: actions/checkout@v4
-        with:
-          repository: devrev/github-actions
-          ref: create-marketplace-submission-v0.1.12
-          token: ${{ secrets.GH_SVC_FGT }}
-          path: ./private-actions
-      - name: Run marketplace submission action
-        uses: ./private-actions/create-marketplace-submission
+      - name: Create marketplace submission
+        uses: devrev/github-actions/create-marketplace-submission@create-marketplace-submission-v0.1.12
         with:
           code_ref_url: ${{ github.event.pull_request.url }}
           github_token: ${{ secrets.GH_SVC_FGT }}
