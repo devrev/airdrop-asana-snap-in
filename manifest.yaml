@@ -47,4 +47,6 @@ imports:
     allowed_connection_types:
       - asana-connection
     capabilities:
-      - TIME_SCOPED_SYNCS
+      # TODO: Asana has time-scoped syncs functionality, but doesn't have oAuth
+      # which is required for computer orgs.
+      # - TIME_SCOPED_SYNCS
