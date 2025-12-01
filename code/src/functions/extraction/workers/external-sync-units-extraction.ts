@@ -25,7 +25,7 @@ processTask({
             itemCount = responseProject?.data?.data?.num_tasks;
           } catch (error) {
             // Log any errors encountered when fetching the task count for a project.
-            console.error(`Error fetching project task count for project ${project.gid}: ${error}`);
+            console.warn(`Error fetching project task count for project ${project.gid}: ${error}`);
           }
 
           // Return object structured according to `ExternalSyncUnit` with conditional item count.
