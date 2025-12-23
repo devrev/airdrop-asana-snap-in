@@ -18,7 +18,7 @@ keyring_types:
     description: Asana Connection through PAT token.
     kind: "Secret"
     is_subdomain: false
-    external_system_name: "Asana"
+    external_system_name: "Asana (ESN change)" # TODO: Remove this after testin external system name change
     secret_config:
       secret_transform: ".token" # no transformation
       fields:
