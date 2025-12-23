@@ -71,7 +71,7 @@ processTask<ExtractorState>({
     const { reset_extract_from, extract_from } = adapter.event.payload.event_context;
 
     // The start of a new sync.
-    if (adapter.event.payload.event_type === EventType.ExtractionDataStart) {
+    if (adapter.event.payload.event_type === EventType.StartExtractingData) {
       // If `extract_from` is provided, it indicates a specific timestamp from which to start the extraction (both inital or incremental).
       if (extract_from) {
         console.log(`Starting extraction from given timestamp: ${extract_from}.`);
@@ -112,12 +112,12 @@ processTask<ExtractorState>({
         if (delay) {
           // Handle any delay in extraction:
           // If a delay is indicated, emit an event to notify of the delay and stop further processing.
-          await adapter.emit(ExtractorEventType.ExtractionDataDelay, { delay });
+          await adapter.emit(ExtractorEventType.DataExtractionDelayed, { delay });
           return;
         } else if (error) {
           // Handle any errors encountered during extraction:
           // If an error occurs, emit an event to to notify of the error and stop further processing.
-          await adapter.emit(ExtractorEventType.ExtractionDataError, { error });
+          await adapter.emit(ExtractorEventType.DataExtractionError, { error });
           return;
         } else {
           // If extraction is successful with no delays or errors,
@@ -134,11 +134,11 @@ processTask<ExtractorState>({
       }
     }
 
-    await adapter.emit(ExtractorEventType.ExtractionDataDone);
+    await adapter.emit(ExtractorEventType.DataExtractionDone);
   },
 
   onTimeout: async ({ adapter }) => {
-    await adapter.emit(ExtractorEventType.ExtractionDataProgress);
+    await adapter.emit(ExtractorEventType.DataExtractionProgress);
   },
 });
 

@@ -41,12 +41,12 @@ processTask({
 
       // Emit an event to signal the completion of external sync units extraction
       // and pass the extracted external sync units.
-      await adapter.emit(ExtractorEventType.ExtractionExternalSyncUnitsDone, {
+      await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionDone, {
         external_sync_units: externalSyncUnits,
       });
     } catch (error) {
       // If an error occurs during the process, emit an error event with the details.
-      await adapter.emit(ExtractorEventType.ExtractionExternalSyncUnitsError, {
+      await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionError, {
         error: {
           message: `Failed to extract external sync units. Error fetching from Asana: ${error}`,
         },
@@ -55,7 +55,7 @@ processTask({
   },
   onTimeout: async ({ adapter }) => {
     // Handle task timeout situations by emitting an error event with a timeout-specific message.
-    await adapter.emit(ExtractorEventType.ExtractionExternalSyncUnitsError, {
+    await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionError, {
       error: {
         message: 'Failed to extract external sync units. Lambda timeout.',
       },
