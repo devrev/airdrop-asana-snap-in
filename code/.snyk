@@ -1,0 +1,24 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+ignore:
+  javascript/DisablePoweredBy/test:
+    - '*':
+        reason: >-
+          Finding is in test/runner.ts which is explicitly test-only code (not
+          deployed to production per file header disclaimer). The X-Powered-By
+          header exposure is not exploitable in a local test harness.
+        expires: 2026-04-29T00:00:00.000Z
+  javascript/ServerLeak/test:
+    - '*':
+        reason: >-
+          Finding is in test/runner.ts which is explicitly test-only code (not
+          deployed to production per file header disclaimer). Server error
+          messages in a local test server pose no production risk.
+        expires: 2026-04-29T00:00:00.000Z
+  javascript/XSS/test:
+    - '*':
+        reason: >-
+          Finding is in test/runner.ts which is explicitly test-only code (not
+          deployed to production per file header disclaimer). XSS risk does not
+          apply to a local developer test server.
+        expires: 2026-04-29T00:00:00.000Z

@@ -1,5 +1,6 @@
 import { AirdropEvent } from '@devrev/ts-adaas';
 import * as dotenv from 'dotenv';
+import * as path from 'path';
 import { functionFactory, FunctionFactoryType } from '../function-factory';
 
 export interface TestRunnerProps {
@@ -34,7 +35,12 @@ export const testRunner = async ({ functionName, fixturePath }: TestRunnerProps)
 
   const run = functionFactory[functionName];
 
-  const eventFixture = require(`../fixtures/${fixturePath}`);
+  const fixturesDir = path.resolve(__dirname, '../fixtures');
+  const resolvedFixturePath = path.resolve(fixturesDir, fixturePath);
+  if (!resolvedFixturePath.startsWith(fixturesDir + path.sep)) {
+    throw new Error('Invalid fixture path: path traversal detected');
+  }
+  const eventFixture = require(resolvedFixturePath);
 
   if (env.parsed) {
     await run(addCredentials(eventFixture, env.parsed));
