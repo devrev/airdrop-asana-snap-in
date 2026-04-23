@@ -1,5 +1,7 @@
 import { AirdropEvent } from '@devrev/ts-adaas';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 import { functionFactory, FunctionFactoryType } from '../function-factory';
 
 export interface TestRunnerProps {
@@ -34,7 +36,12 @@ export const testRunner = async ({ functionName, fixturePath }: TestRunnerProps)
 
   const run = functionFactory[functionName];
 
-  const eventFixture = require(`../fixtures/${fixturePath}`);
+  const fixturesDir = path.resolve(__dirname, '../fixtures');
+  const resolvedPath = path.resolve(fixturesDir, fixturePath);
+  if (!resolvedPath.startsWith(fixturesDir + path.sep) && resolvedPath !== fixturesDir) {
+    throw new Error(`Invalid fixturePath: must be within the fixtures directory`);
+  }
+  const eventFixture = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
 
   if (env.parsed) {
     await run(addCredentials(eventFixture, env.parsed));

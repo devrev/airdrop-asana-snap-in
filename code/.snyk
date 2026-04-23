@@ -1,0 +1,15 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+ignore:
+  ae77ea27.883ce888.8b18f948.d7919eeb.ac82cb7b.5fce695c.ea4b1c47.89d75565.ae77ea27.4773f344.aa4dda5f.d7919eeb.ac82cb7b.5fce695c.60d372c8.89d75565:
+    - '*':
+        reason: Information Exposure (X-Powered-By) finding is in test-only code (test/runner.ts), never deployed to production
+        expires: 2026-04-30T00:00:00.000Z
+  40c5fd92.4773f344.a32ed1a1.c8688b2b.ef9f7d82.8020cfdf.cd61fc56.2f05c567.67e7998e.277c621c.dc0149fe.c8688b2b.b61fbd15.6d3c1d72.e31b1230.2f05c567:
+    - '*':
+        reason: Server error message leak is in test-only code (test/runner.ts), never deployed to production
+        expires: 2026-04-30T00:00:00.000Z
+  40c5fd92.4773f344.a32ed1a1.c8688b2b.ef9f7d82.8020cfdf.cd61fc56.2f05c567.67e7998e.277c621c.dc0149fe.08906714.b61fbd15.6d3c1d72.e31b1230.cd44a39f:
+    - '*':
+        reason: XSS finding is in test-only code (test/runner.ts), never deployed to production
+        expires: 2026-04-30T00:00:00.000Z
