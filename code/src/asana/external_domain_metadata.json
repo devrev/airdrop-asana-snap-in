@@ -1,0 +1,492 @@
+{
+  "schema_version": "v0.2.0",
+  "record_types": {
+    "tasks": {
+      "name": "Tasks",
+      "is_loadable": true,
+      "fields": {
+        "name": {
+          "name": "Name",
+          "is_required": true,
+          "type": "text"
+        },
+        "assignee": {
+          "name": "Assignee",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "created_by": {
+          "name": "Created By",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "description": {
+          "name": "Description",
+          "type": "rich_text"
+        },
+        "item_url_field": {
+          "name": "Item URL Field",
+          "type": "text"
+        },
+        "due_date": {
+          "name": "Due Date",
+          "type": "timestamp"
+        },
+        "start_date": {
+          "name": "Start Date",
+          "type": "timestamp"
+        },
+        "completed": {
+          "name": "Completed",
+          "type": "bool"
+        },
+        "completed_at": {
+          "name": "Completed At",
+          "type": "timestamp"
+        },
+        "followers": {
+          "name": "Followers",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          },
+          "collection": {}
+        },
+        "parent_task": {
+          "name": "Parent Task",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tasks": {}
+            }
+          }
+        },
+        "tags": {
+          "name": "Tags",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tags": {}
+            }
+          },
+          "collection": {}
+        },
+        "section": {
+          "name": "Section",
+          "description": "The section/stage of the task in the project. Values are populated dynamically from Asana project sections.",
+          "type": "enum",
+          "enum": {
+            "values": []
+          }
+        },
+        "actual_effort": {
+          "name": "Actual Effort",
+          "description": "Actual time spent on the task in minutes (from Asana time tracking).",
+          "type": "float"
+        },
+        "completed_by": {
+          "name": "Completed By",
+          "description": "User who marked the task as complete.",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "reported_by": {
+          "name": "Reported By",
+          "description": "User who reported/created the task.",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "resource_subtype": {
+          "name": "Task Type",
+          "description": "The type of task: default_task, milestone, approval, or custom.",
+          "type": "enum",
+          "enum": {
+            "values": [
+              {
+                "key": "default_task",
+                "name": "Task"
+              },
+              {
+                "key": "milestone",
+                "name": "Milestone"
+              },
+              {
+                "key": "approval",
+                "name": "Approval"
+              },
+              {
+                "key": "custom",
+                "name": "Custom"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "users": {
+      "name": "Users",
+      "scope": "data_is_system_scoped",
+      "fields": {
+        "display_name": {
+          "name": "Display Name",
+          "is_required": true,
+          "type": "text"
+        },
+        "email": {
+          "name": "Email",
+          "type": "text"
+        },
+        "full_name": {
+          "name": "Full Name",
+          "type": "text"
+        }
+      }
+    },
+    "tags": {
+      "name": "Tags",
+      "scope": "data_is_system_scoped",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "is_required": true,
+          "type": "text"
+        },
+        "color": {
+          "name": "Color",
+          "type": "text"
+        },
+        "description": {
+          "name": "Description",
+          "type": "text"
+        }
+      }
+    },
+    "comments": {
+      "name": "Comments",
+      "is_loadable": true,
+      "fields": {
+        "parent_id": {
+          "name": "Parent Task",
+          "is_required": true,
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tasks": {}
+            },
+            "reference_type": "parent"
+          }
+        },
+        "author": {
+          "name": "Author",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "body": {
+          "name": "Body",
+          "type": "rich_text"
+        }
+      }
+    },
+    "subtasks": {
+      "name": "Subtasks",
+      "is_loadable": true,
+      "fields": {
+        "name": {
+          "name": "Name",
+          "is_required": true,
+          "type": "text"
+        },
+        "assignee": {
+          "name": "Assignee",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "created_by": {
+          "name": "Created By",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "description": {
+          "name": "Description",
+          "type": "rich_text"
+        },
+        "item_url_field": {
+          "name": "Item URL Field",
+          "type": "text"
+        },
+        "due_date": {
+          "name": "Due Date",
+          "type": "timestamp"
+        },
+        "start_date": {
+          "name": "Start Date",
+          "type": "timestamp"
+        },
+        "completed": {
+          "name": "Completed",
+          "type": "bool"
+        },
+        "completed_at": {
+          "name": "Completed At",
+          "type": "timestamp"
+        },
+        "followers": {
+          "name": "Followers",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          },
+          "collection": {}
+        },
+        "parent_task": {
+          "name": "Parent Task",
+          "description": "Reference to the parent task this subtask belongs to",
+          "is_required": true,
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tasks": {}
+            }
+          }
+        },
+        "tags": {
+          "name": "Tags",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tags": {}
+            }
+          },
+          "collection": {}
+        },
+        "completed_stage": {
+          "name": "Completed Stage",
+          "description": "Stage derived from the completed status of the subtask: Open or Completed.",
+          "type": "enum",
+          "enum": {
+            "values": [
+              {
+                "key": "open",
+                "name": "Open"
+              },
+              {
+                "key": "completed",
+                "name": "Completed"
+              }
+            ]
+          }
+        },
+        "actual_effort": {
+          "name": "Actual Effort",
+          "description": "Actual time spent on the subtask in minutes (from Asana time tracking).",
+          "type": "float"
+        },
+        "completed_by": {
+          "name": "Completed By",
+          "description": "User who marked the subtask as complete.",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "reported_by": {
+          "name": "Reported By",
+          "description": "User who reported/created the subtask.",
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "resource_subtype": {
+          "name": "Task Type",
+          "description": "The type of subtask: default_task, milestone, approval, or custom.",
+          "type": "enum",
+          "enum": {
+            "values": [
+              {
+                "key": "default_task",
+                "name": "Task"
+              },
+              {
+                "key": "milestone",
+                "name": "Milestone"
+              },
+              {
+                "key": "approval",
+                "name": "Approval"
+              },
+              {
+                "key": "custom",
+                "name": "Custom"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "links": {
+      "name": "Links",
+      "is_loadable": true,
+      "description": "Links between tasks/subtasks for parent-child and dependency relationships",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "The source object of the relationship",
+          "is_required": true,
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tasks": {},
+              "#record:subtasks": {}
+            }
+          }
+        },
+        "target": {
+          "name": "Target",
+          "description": "The target object of the relationship",
+          "is_required": true,
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:tasks": {},
+              "#record:subtasks": {}
+            }
+          }
+        },
+        "link_type": {
+          "name": "Link Type",
+          "description": "The type of link relationship: is_parent_of or is_dependent_on",
+          "is_required": true,
+          "type": "enum",
+          "enum": {
+            "values": [
+              {
+                "key": "is_parent_of",
+                "name": "Is Parent Of"
+              },
+              {
+                "key": "is_dependent_on",
+                "name": "Is Dependent On"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "groups": {
+      "name": "Group",
+      "scope": "data_is_system_scoped",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "is_required": true,
+          "type": "text"
+        },
+        "description": {
+          "name": "Description",
+          "type": "rich_text"
+        }
+      }
+    },
+    "group_memberships": {
+      "name": "Group Membership",
+      "scope": "data_is_system_scoped",
+      "fields": {
+        "group_id": {
+          "name": "Group",
+          "is_required": true,
+          "type": "reference",
+          "reference": {
+            "refers_to": {
+              "#record:groups": {}
+            }
+          }
+        },
+        "member_ids": {
+          "name": "Members",
+          "type": "reference",
+          "collection": {},
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        }
+      }
+    },
+    "access_rules": {
+      "name": "Access Rules",
+      "is_snapshot": true,
+      "fields": {
+        "permission_users": {
+          "name": "Users",
+          "type": "reference",
+          "collection": {},
+          "reference": {
+            "refers_to": {
+              "#record:users": {}
+            }
+          }
+        },
+        "permission_groups": {
+          "name": "Groups",
+          "type": "reference",
+          "collection": {},
+          "reference": {
+            "refers_to": {
+              "#record:groups": {}
+            }
+          }
+        },
+        "object_access": {
+          "name": "Object Access",
+          "type": "record_type_privilege",
+          "is_required": true,
+          "collection": {},
+          "record_type_privilege": {
+            "type_keys": [
+              "#record:tasks",
+              "#record:subtasks"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

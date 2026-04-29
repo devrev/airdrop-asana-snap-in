@@ -1,32 +1,19 @@
-import { AirdropEvent, EventType, spawn } from '@devrev/ts-adaas';
+import { AirdropEvent, spawn } from '@devrev/ts-adaas';
 
-import initialDomainMapping from '../asana/initial_domain_mapping.json';
+import initialDomainMapping from '@asana/initial_domain_mapping.json';
 
-export type LoaderState = {};
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface LoaderState {}
 
-function getWorkerPerLoadingPhase(event: AirdropEvent) {
-  let path;
-  switch (event.payload.event_type) {
-    case EventType.StartLoadingData:
-    case EventType.ContinueLoadingData:
-      path = __dirname + '/workers/load-data';
-      break;
-    case EventType.StartLoadingAttachments:
-    case EventType.ContinueLoadingAttachments:
-      path = __dirname + '/workers/load-attachments';
-      break;
-  }
-  return path;
-}
+export const initialLoaderState: LoaderState = {};
 
-const run = async (events: AirdropEvent[]) => {
+const run = async (events: AirdropEvent[]): Promise<void> => {
   for (const event of events) {
-    const file = getWorkerPerLoadingPhase(event);
     await spawn<LoaderState>({
       event,
-      initialState: {},
-      workerPath: file,
-      initialDomainMapping
+      initialState: initialLoaderState,
+      initialDomainMapping,
+      baseWorkerPath: __dirname,
     });
   }
 };
