@@ -1,10 +1,24 @@
 version: "2"
 
 name: Asana
-description: Import users, tasks and attachments from Asana.
+description: Import users, tasks, subtasks, attachments, comments, tags, and links (parent-child, dependencies) from Asana.
 
 service_account:
   display_name: Asana Bot
+  scopes:
+    self:
+      - scope: sync_mapper_record:write
+        optional: false
+        reason: "Allow write access to sync mapper records"
+      - scope: sync_mapper_record:read
+        optional: false
+        reason: "Allow read access to sync mapper records"
+      - scope: sync_unit:read
+        optional: false
+        reason: "Allow read access to sync units"
+      - scope: sync_snap_in:all
+        optional: false
+        reason: "Allow all access to sync snap ins"
 
 functions:
   - name: extraction
@@ -12,15 +26,68 @@ functions:
   - name: loading
     description: Loading function
 
+developer_keyrings:
+  - name: asana-oauth-secret
+    description: OAuth2 client credentials for Asana
+    display_name: Asana OAuth Secret
+
 keyring_types:
+  - id: asana-oauth-connection
+    name: Asana OAuth Connection
+    description: Asana Connection through OAuth2.
+    kind: "Oauth2"
+    external_system_name: "Asana"
+    scopes:
+      - name: Default
+        description: Full access to Asana resources
+        value: "default"
+    scope_delimiter: " "
+    oauth_secret: asana-oauth-secret
+    authorize:
+      type: "config"
+      auth_url: "https://app.asana.com/-/oauth_authorize"
+      token_url: "https://app.asana.com/-/oauth_token"
+      grant_type: "authorization_code"
+      auth_query_parameters:
+        "client_id": "[CLIENT_ID]"
+        "scope": "[SCOPES]"
+        "response_type": "code"
+      token_query_parameters:
+        "client_id": "[CLIENT_ID]"
+        "client_secret": "[CLIENT_SECRET]"
+    organization_data:
+      type: "config"
+      url: "https://app.asana.com/api/1.0/workspaces"
+      method: "GET"
+      headers:
+        "Authorization": "Bearer [ACCESS_TOKEN]"
+      response_jq: ".data[] | { id: .gid, name: .name }"
+    refresh:
+      type: "config"
+      url: "https://app.asana.com/-/oauth_token"
+      method: "POST"
+      query_parameters:
+        "grant_type": "refresh_token"
+        "client_id": "[CLIENT_ID]"
+        "client_secret": "[CLIENT_SECRET]"
+        "refresh_token": "[REFRESH_TOKEN]"
+    revoke:
+      type: "config"
+      url: "https://app.asana.com/-/oauth_revoke"
+      method: "POST"
+      query_parameters:
+        "client_id": "[CLIENT_ID]"
+        "client_secret": "[CLIENT_SECRET]"
+        "token": "[REFRESH_TOKEN]"
+
   - id: asana-connection
-    name: Asana Connection
+    name: Asana PAT Connection
     description: Asana Connection through PAT token.
     kind: "Secret"
     is_subdomain: false
     external_system_name: "Asana"
     secret_config:
-      secret_transform: ".token" # no transformation
+      secret_transform: ".token" # 
       fields:
         - id: token
           name: Token
@@ -45,8 +112,9 @@ imports:
     extractor_function: extraction
     loader_function: loading
     allowed_connection_types:
+      - asana-oauth-connection
       - asana-connection
     capabilities:
-      # TODO: Asana has time-scoped syncs functionality, but doesn't have oAuth
-      # which is required for computer orgs.
-      # - TIME_SCOPED_SYNCS
+      - TIME_SCOPED_SYNCS
+      - TIME_SCOPED_SYNCS_ADVANCED
+      # - COMPUTER_READY

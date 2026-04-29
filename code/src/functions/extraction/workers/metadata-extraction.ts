@@ -1,31 +1,49 @@
-import { ExtractorEventType, processTask } from '@devrev/ts-adaas';
+import { ExternalDomainMetadata, ExtractorEventType, processTask } from '@devrev/ts-adaas';
 
-// Importing external domain metadata from a JSON file.
-import externalDomainMetadata from '../../asana/external_domain_metadata.json';
+import { AsanaClient } from '@asana/api-client';
+import { ItemType } from '@asana/constants';
+import baseExternalDomainMetadata from '@asana/external_domain_metadata.json';
+import {
+  enrichMetadataWithCustomFields,
+  enrichMetadataWithSections,
+  enrichMetadataWithSubtaskStages,
+} from '@utils/metadata-helpers';
 
-// Define the repo setup for 'external_domain_metadata'.
-const repos = [
-  {
-    itemType: 'external_domain_metadata',
-  },
-];
+import type { ExtractorState } from '../index';
 
-processTask({
+processTask<ExtractorState>({
   task: async ({ adapter }) => {
-    // Initialize repo using the adapter.
-    adapter.initializeRepos(repos);
+    adapter.initializeRepos([{ itemType: ItemType.EXTERNAL_DOMAIN_METADATA }]);
 
-    // Push the externally loaded domain metadata into its corresponding repository.
-    await adapter.getRepo('external_domain_metadata')?.push([externalDomainMetadata]);
+    const asanaClient = new AsanaClient(adapter.event);
+    const metadata: ExternalDomainMetadata = structuredClone(baseExternalDomainMetadata) as ExternalDomainMetadata;
 
-    // Emit an event indicating that the extraction process for metadata is complete.
-    await adapter.emit(ExtractorEventType.ExtractionMetadataDone);
+    const customFieldsError = await enrichMetadataWithCustomFields(metadata, asanaClient);
+    if (customFieldsError) {
+      await adapter.emit(ExtractorEventType.MetadataExtractionError, {
+        error: { message: customFieldsError },
+      });
+      return;
+    }
+
+    const sectionsError = await enrichMetadataWithSections(metadata, asanaClient);
+    if (sectionsError) {
+      await adapter.emit(ExtractorEventType.MetadataExtractionError, {
+        error: { message: sectionsError },
+      });
+      return;
+    }
+
+    enrichMetadataWithSubtaskStages(metadata);
+
+    await adapter.getRepo(ItemType.EXTERNAL_DOMAIN_METADATA)?.push([metadata]);
+    await adapter.emit(ExtractorEventType.MetadataExtractionDone);
   },
   onTimeout: async ({ adapter }) => {
-    // Handle the scenario where the task does not complete in the expected timeframe.
-    // Emit an error event to signal that metadata extraction failed due to a timeout.
-    await adapter.emit(ExtractorEventType.ExtractionMetadataError, {
-      error: { message: 'Failed to extract metadata. Lambda timeout.' },
+    await adapter.emit(ExtractorEventType.MetadataExtractionError, {
+      error: {
+        message: 'Failed to extract metadata from Asana due to timeout. Please check the logs for more details.',
+      },
     });
   },
 });

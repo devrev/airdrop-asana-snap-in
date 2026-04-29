@@ -1,13 +1,54 @@
-# IDE-specific configs
-/.vscode/*
-.code-workspace
-/.idea/*
+# Dependencies
+node_modules
 
-# Allow run configurations / launch files
-!/.idea/runConfigurations
-!/.vscode/launch.json
-!/.vscode/extensions.json
-
+# Build outputs
+dist
 build.tar.gz
-nohup.out
+*.tsbuildinfo
+
+# Environment variables
 .env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage
+
+# Project-specific
+extracted_files
+asana_oas.yaml
+code/src/generated/asana-api/.openapi-generator-ignore
+code/src/generated/asana-api/.openapi-generator
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.code-workspace
+.cursor/
+.claude/
+
+# Generated/local data
+code/scripts/generate-mock-data/mock-data-manifest.json
+
+# Other
+.github
+!.github/CODEOWNERS
+marketplace.yaml

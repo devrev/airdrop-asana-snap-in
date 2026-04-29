@@ -1,97 +1,73 @@
-import { AsanaClient } from '../../asana/client';
+import type { ExternalSystemAttachment, ExternalSystemItemLoadingParams, ExternalSystemItemLoadingResponse } from '@devrev/ts-adaas';
+import { LoaderEventType, processTask } from '@devrev/ts-adaas';
 
-import {
-  axios,
-  ExternalSystemAttachment,
-  ExternalSystemItemLoadingParams,
-  LoaderEventType,
-  processTask,
-  serializeAxiosError,
-} from '@devrev/ts-adaas';
+import { AsanaClient } from '@asana/api-client';
+import { handleLoadingError, resolveExternalId } from '@utils/loading-helpers';
+import { serializeError } from '@utils/serialize-error';
 
-const create = async ({ item, mappers, event }: ExternalSystemItemLoadingParams<ExternalSystemAttachment>) => {
-  // Initialize the Asana client using information from the event.
-  const asanaClient = new AsanaClient(event);
+import type { LoaderState } from '../index';
 
+async function createAttachment({
+  item,
+  mappers,
+  event,
+}: ExternalSystemItemLoadingParams<ExternalSystemAttachment>): Promise<ExternalSystemItemLoadingResponse> {
   try {
-    // Utilize mappers to retrieve the necessary task data from the DevRev system.
-    // The mapper fetches this data based on the `sync_unit` and `parent_reference_id`,
-    // allowing us to identify the associated Asana task ID.
-    const asanaTask = await mappers.getByTargetId({
-      sync_unit: event.payload.event_context.sync_unit,
-      target: item.parent_reference_id,
-    });
+    const asanaClient = new AsanaClient(event);
+    const syncUnit = event.payload.event_context.sync_unit;
 
-    // Extract the Asana Task ID from the retrieved data.
-    const asanaTaskId = asanaTask.data.sync_mapper_record?.external_ids?.[0];
+    const parentDevrevId = item.parent_reference_id || item.parent_id;
+    let parentGid = parentDevrevId
+      ? await resolveExternalId(mappers, syncUnit, parentDevrevId)
+      : null;
 
-    // Verify that a valid Asana Task ID was obtained.
-    if (asanaTaskId) {
-      // If a valid Asana Task ID is available, create the attachment in Asana.
-      await asanaClient.createAttachment(item, asanaTaskId);
-    } else {
-      // If no valid Task ID is found, log a warning and return an error.
-      console.warn('Attachment has no parent_id:', item);
-      return {
-        error: 'Attachment has no parent_id.',
-      };
+    // Asana only accepts task GIDs as attachment parents.
+    // If parent is a comment, resolve to the parent task instead.
+    if (parentGid && parentDevrevId?.includes(':comment/')) {
+      const taskDevrevId = parentDevrevId.replace(/:comment\/.*$/, '');
+      parentGid = await resolveExternalId(mappers, syncUnit, taskDevrevId);
     }
+
+    if (!parentGid) {
+      console.warn(`Cannot resolve parent for attachment "${item.file_name}". parentReferenceId=${item.parent_reference_id}, parentId=${item.parent_id}`);
+      return { error: `Cannot resolve parent for attachment ${item.file_name}, parentReferenceId=${item.parent_reference_id}, parentId=${item.parent_id}` };
+    }
+
+    const { default: axios } = await import('axios');
+    const fileResponse = await axios.get(item.url, { responseType: 'arraybuffer' });
+    const fileBuffer = Buffer.from(fileResponse.data);
+
+    const response = await asanaClient.createTaskAttachment(parentGid, fileBuffer, item.file_name);
+    const attachmentGid = response.data?.data?.gid;
+
+    return { id: attachmentGid };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      // Handle Axios-specific errors, including rate limiting.
-      if (error.response?.status === 429) {
-        // Log and handle rate limit scenarios by returning a delay.
-        console.log(`Rate limit hit. Retrying after ${error.response.headers['Retry-After']} seconds.`);
-        return { delay: Number(error.response.headers['Retry-After']) };
-      } else {
-        // Log other Axios errors and serialize them for the return object.
-        console.error('Error while creating attachment', serializeAxiosError(error));
-        return { error: JSON.stringify(error) };
-      }
-    } else {
-      // Log any unexpected errors that aren't Axios-specific.
-      console.error('Unexpected error while creating attachment', error);
-      return { error: JSON.stringify(error) };
-    }
+    console.error(`Failed to load attachment "${item.file_name}" to parent ${item.parent_reference_id || item.parent_id}: ${serializeError(error)}`);
+    return handleLoadingError(error);
   }
+}
 
-  // Return a success object containing the reference ID of the created item.
-  return {
-    id: item.reference_id,
-  };
-};
-
-processTask({
+processTask<LoaderState>({
   task: async ({ adapter }) => {
-    // Initiates the loading of attachments into Asana.
-    // The adapter provides a method `loadAttachments`, which takes an object containing
-    // a `create` function. This function is responsible for defining how each attachment
-    // should be created in Asana.
-    // `loadAttachments` processes attachments one by one and creates them in DevRev.
-    const { reports, processed_files } = await adapter.loadAttachments({
-      create,
-    });
-
-    // After the attachments are successfully loaded, emit an event to signal completion.
-    // This event includes `reports` and `processed_files` which provide details about the
-    // loading process, useful for logging or further processing.
-    await adapter.emit(LoaderEventType.AttachmentLoadingDone, {
-      reports,
-      processed_files,
-    });
+    try {
+      console.log('Starting attachment loading.');
+      await adapter.loadAttachments({ create: createAttachment });
+      console.log('Attachment loading completed.');
+      await adapter.emit(LoaderEventType.AttachmentLoadingDone);
+    } catch (error) {
+      const result = handleLoadingError(error);
+      if (result.delay) {
+        console.warn(`Rate limited during attachment loading. Delaying for ${result.delay}s.`);
+        await adapter.emit(LoaderEventType.AttachmentLoadingDelayed, { delay: result.delay });
+      } else {
+        console.error(`Attachment loading failed: ${result.error}`);
+        await adapter.emit(LoaderEventType.AttachmentLoadingError, {
+          error: { message: result.error ?? 'Unknown error during attachment loading' },
+        });
+      }
+    }
   },
   onTimeout: async ({ adapter }) => {
-    // In the case of a timeout during the loading process, preserve the current state
-    // by posting it. This helps in maintaining progress information even when the task
-    // execution does not complete within expected timeframes.
-    await adapter.postState();
-
-    // Emit a progress event to provide an update on how many attachments were processed
-    // before timeout. This includes `reports` and `processed_files` to give insights into
-    // the state of the process when it was interrupted.
-    await adapter.emit(LoaderEventType.AttachmentLoadingProgress, {
-      reports: adapter.reports,
-      processed_files: adapter.processedFiles,
-    });
+    await adapter.emit(LoaderEventType.AttachmentLoadingProgress);
   },
 });

@@ -1,31 +1,68 @@
-import { LoaderEventType, processTask } from '@devrev/ts-adaas';
-
-import {
+import type {
+  AirdropEvent,
   ExternalSystemItem,
   ExternalSystemItemLoadingParams,
   ExternalSystemItemLoadingResponse,
 } from '@devrev/ts-adaas';
+import { LoaderEventType, processTask } from '@devrev/ts-adaas';
 
-import { AsanaClient } from '../../asana/client';
-import { denormalizeTask } from '../../asana/data-denormalization';
+import { AsanaClient } from '@asana/api-client';
+import { ItemType, LinkType } from '@asana/constants';
+import { denormalizeComment, denormalizeLink, denormalizeTask } from '@asana/data-denormalization';
+import { handleLoadingError, resolveExternalId, resolveRef } from '@utils/loading-helpers';
+import { serializeError } from '@utils/serialize-error';
+
+import type { LoaderState } from '../index';
+
+function buildResolver(mappers: ExternalSystemItemLoadingParams<ExternalSystemItem>['mappers'], event: AirdropEvent) {
+  const syncUnit = event.payload.event_context.sync_unit;
+  return (devrevId: string) => resolveExternalId(mappers, syncUnit, devrevId);
+}
 
 async function createTask({
   item,
   mappers,
   event,
 }: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
-  const client = new AsanaClient(event);
-  const projectId = event.payload.event_context.external_sync_unit_id;
-
-  const task = denormalizeTask(item, projectId);
-
   try {
-    const response = await client.createTask(task);
+    const resolveId = buildResolver(mappers, event);
+    const asanaClient = new AsanaClient(event);
+    const { createRequest, sectionGid, tagGids } = await denormalizeTask(item.data, resolveId);
 
-    return { id: response.data.data.gid };
-  } catch (error: any) {
-    console.log('Could not create a task in Asana.', error);
-    return { error: 'Could not create a task in Asana.' };
+    if (createRequest.data) {
+      createRequest.data.projects = [asanaClient.projectId];
+    }
+    const response = await asanaClient.createTask(createRequest);
+    const taskGid = response.data?.data?.gid;
+    const modifiedAt = response.data?.data?.modified_at;
+
+    if (!taskGid) return { error: `Failed to create task — no GID returned. taskDevrevId=${item.id.devrev}` };
+
+    if (sectionGid) {
+      try {
+        await asanaClient.addTaskToSection(sectionGid, { data: { task: taskGid } });
+      } catch (error) {
+        console.warn(`Task ${taskGid} (devrevId=${item.id.devrev}) created but section assignment to ${sectionGid} failed: ${serializeError(error)}`);
+      }
+    }
+
+    if (tagGids?.length) {
+      const failedTags: string[] = [];
+      for (const tagGid of tagGids) {
+        try {
+          await asanaClient.addTagToTask(taskGid, { data: { tag: tagGid } });
+        } catch {
+          failedTags.push(tagGid);
+        }
+      }
+      if (failedTags.length > 0) {
+        console.warn(`Task ${taskGid} (devrevId=${item.id.devrev}): ${failedTags.length} tag assignments failed: ${failedTags.join(', ')}`);
+      }
+    }
+
+    return { id: taskGid, modifiedDate: modifiedAt };
+  } catch (error) {
+    return handleLoadingError(error);
   }
 }
 
@@ -34,61 +71,205 @@ async function updateTask({
   mappers,
   event,
 }: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
-  const client = new AsanaClient(event);
-  const taskId = item.id.external as string;
-
-  const task = denormalizeTask(item);
-
   try {
-    const response = await client.updateTask(taskId, task);
+    const resolveId = buildResolver(mappers, event);
+    let externalId = item.id.external;
+    if (!externalId) {
+      externalId = await resolveId(item.id.devrev) ?? undefined;
+    }
+    if (!externalId) return { error: `No external ID for task update. taskDevrevId=${item.id.devrev}` };
 
-    return { id: response.data.data.gid };
-  } catch (error: any) {
-    console.log('Could not update a task in Asana.', error);
-    return { error: 'Could not update a task in Asana.' };
+    const asanaClient = new AsanaClient(event);
+    const { updateRequest, sectionGid, tagGids } = await denormalizeTask(item.data, resolveId);
+
+    const response = await asanaClient.updateTask(externalId, updateRequest);
+    const modifiedAt = response.data?.data?.modified_at;
+
+    if (sectionGid) {
+      try {
+        await asanaClient.addTaskToSection(sectionGid, { data: { task: externalId } });
+      } catch (error) {
+        console.warn(`Task ${externalId} (devrevId=${item.id.devrev}) updated but section move to ${sectionGid} failed: ${serializeError(error)}`);
+      }
+    }
+
+    if (tagGids?.length) {
+      const failedTags: string[] = [];
+      for (const tagGid of tagGids) {
+        try {
+          await asanaClient.addTagToTask(externalId, { data: { tag: tagGid } });
+        } catch {
+          failedTags.push(tagGid);
+        }
+      }
+      if (failedTags.length > 0) {
+        console.warn(`Task ${externalId} (devrevId=${item.id.devrev}): ${failedTags.length} tag assignments failed: ${failedTags.join(', ')}`);
+      }
+    }
+
+    return { id: externalId, modifiedDate: modifiedAt };
+  } catch (error) {
+    return handleLoadingError(error);
   }
 }
 
-processTask({
-  task: async ({ adapter }) => {
-    // This section is responsible for loading data into an external system.
-    // It involves both creating and updating data. The process is abstracted
-    // such that the user only needs to provide specific functions for these operations.
-    //
-    // Key components include:
-    // - `itemTypesToLoad`: An array specifying the types of items to be loaded.
-    //     - Each entry includes:
-    //         - `itemType`: A string indicating the type of item, e.g., 'tasks'.
-    //         - `create`: A function to be called to create new items in the external system.
-    //         - `update`: A function to be called to update existing items in the external system.
-    //
-    // The `loadItemTypes` method of the adapter is used to streamline and manage
-    // these operations. It returns `reports` and `processed_files`, which provide
-    // feedback on the data loading process.
-    const { reports, processed_files } = await adapter.loadItemTypes({
-      itemTypesToLoad: [
-        {
-          itemType: 'tasks',
-          create: createTask,
-          update: updateTask,
-        },
-      ],
-    });
+async function createSubtask({
+  item,
+  mappers,
+  event,
+}: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
+  try {
+    const resolveId = buildResolver(mappers, event);
+    const asanaClient = new AsanaClient(event);
+    const { createRequest, tagGids } = await denormalizeTask(item.data, resolveId);
 
-    // After loading, an event is emitted to indicate that the data loading process
-    // has been completed, including any reports and processed file information.
-    await adapter.emit(LoaderEventType.DataLoadingDone, {
-      reports,
-      processed_files,
-    });
+    const parentGid = item.data.parent_task ? await resolveRef(item.data.parent_task, resolveId) : null;
+
+    let response;
+    if (parentGid) {
+      // Create as subtask under the known parent
+      response = await asanaClient.createTaskSubtask(parentGid, createRequest);
+    } else {
+      // Parent not in transformer data (DevRev manages hierarchy via links).
+      // Create as a standalone task; link loading will set the parent via setTaskParent.
+      if (createRequest.data) {
+        createRequest.data.projects = [asanaClient.projectId];
+      }
+      response = await asanaClient.createTask(createRequest);
+    }
+
+    const subtaskGid = response.data?.data?.gid;
+    const modifiedAt = response.data?.data?.modified_at;
+
+    if (!subtaskGid) return { error: `Failed to create subtask — no GID returned. subtaskDevrevId=${item.id.devrev}` };
+
+    if (tagGids?.length) {
+      const failedTags: string[] = [];
+      for (const tagGid of tagGids) {
+        try {
+          await asanaClient.addTagToTask(subtaskGid, { data: { tag: tagGid } });
+        } catch {
+          failedTags.push(tagGid);
+        }
+      }
+      if (failedTags.length > 0) {
+        console.warn(`Subtask ${subtaskGid} (devrevId=${item.id.devrev}): ${failedTags.length} tag assignments failed: ${failedTags.join(', ')}`);
+      }
+    }
+
+    return { id: subtaskGid, modifiedDate: modifiedAt };
+  } catch (error) {
+    return handleLoadingError(error);
+  }
+}
+
+async function updateSubtask({
+  item,
+  mappers,
+  event,
+}: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
+  return updateTask({ item, mappers, event });
+}
+
+async function createComment({
+  item,
+  mappers,
+  event,
+}: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
+  try {
+    const resolveId = buildResolver(mappers, event);
+    const asanaClient = new AsanaClient(event);
+    const { parentGid, request } = await denormalizeComment(item.data, resolveId);
+
+    if (!parentGid) return { error: `Cannot resolve parent task for comment. commentDevrevId=${item.id.devrev}, parentId=${String(item.data.parent_id)}` };
+
+    const response = await asanaClient.createTaskComment(parentGid, request);
+    const commentGid = response.data?.data?.gid;
+
+    return { id: commentGid };
+  } catch (error) {
+    return handleLoadingError(error);
+  }
+}
+
+async function updateComment({
+  item,
+}: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
+  // Asana does not support comment updates — return existing external ID as a no-op
+  return { id: item.id.external };
+}
+
+async function createLink({
+  item,
+  mappers,
+  event,
+}: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
+  try {
+    const resolveId = buildResolver(mappers, event);
+    const asanaClient = new AsanaClient(event);
+    const linkAction = await denormalizeLink(item.data, resolveId);
+
+    if (!linkAction) return { error: `Cannot resolve link endpoints. linkDevrevId=${item.id.devrev}, source=${String(item.data.source)}, target=${String(item.data.target)}, linkType=${String(item.data.link_type)}` };
+
+    const syntheticId = `${linkAction.linkType}_${linkAction.sourceGid}_${linkAction.targetGid}`;
+
+    switch (linkAction.linkType) {
+      case LinkType.IS_DEPENDENT_ON:
+        await asanaClient.addTaskDependencies(linkAction.sourceGid, { data: { dependencies: [linkAction.targetGid] } });
+        break;
+      case LinkType.IS_PARENT_OF:
+        await asanaClient.setTaskParent(linkAction.targetGid, { data: { parent: linkAction.sourceGid } });
+        break;
+      case 'is_duplicate_of':
+      case 'is_related_to':
+        // No direct Asana API equivalent — skip gracefully
+        console.warn(`Link type '${linkAction.linkType}' has no Asana API equivalent. Skipping.`);
+        return { id: syntheticId };
+      default:
+        console.warn(`Unknown link type '${linkAction.linkType}'. Skipping.`);
+        return { id: syntheticId };
+    }
+
+    return { id: syntheticId };
+  } catch (error) {
+    return handleLoadingError(error);
+  }
+}
+
+async function updateLink(
+  params: ExternalSystemItemLoadingParams<ExternalSystemItem>
+): Promise<ExternalSystemItemLoadingResponse> {
+  return createLink(params);
+}
+
+const itemTypesToLoad = [
+  { itemType: ItemType.TASKS, create: createTask, update: updateTask },
+  { itemType: ItemType.SUBTASKS, create: createSubtask, update: updateSubtask },
+  { itemType: ItemType.COMMENTS, create: createComment, update: updateComment },
+  { itemType: ItemType.LINKS, create: createLink, update: updateLink },
+];
+
+processTask<LoaderState>({
+  task: async ({ adapter }) => {
+    try {
+      console.log('Starting data loading.');
+      await adapter.loadItemTypes({ itemTypesToLoad });
+      console.log('Data loading completed.');
+      await adapter.emit(LoaderEventType.DataLoadingDone);
+    } catch (error) {
+      const result = handleLoadingError(error);
+      if (result.delay) {
+        console.warn(`Rate limited during data loading. Delaying for ${result.delay}s.`);
+        await adapter.emit(LoaderEventType.DataLoadingDelayed, { delay: result.delay });
+      } else {
+        console.error(`Data loading failed: ${result.error}`);
+        await adapter.emit(LoaderEventType.DataLoadingError, {
+          error: { message: result.error ?? 'Unknown error during data loading' },
+        });
+      }
+    }
   },
   onTimeout: async ({ adapter }) => {
-    // In case of a timeout, maintain the current state and progress by
-    // posting the state and emitting a progress event with current reports and processed files.
-    await adapter.postState();
-    await adapter.emit(LoaderEventType.DataLoadingProgress, {
-      reports: adapter.reports,
-      processed_files: adapter.processedFiles,
-    });
+    await adapter.emit(LoaderEventType.DataLoadingProgress);
   },
 });
