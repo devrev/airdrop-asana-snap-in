@@ -54,7 +54,7 @@
     "yargs": "^17.6.2"
   },
   "dependencies": {
-    "@devrev/ts-adaas": "1.19.4",
+    "@devrev/ts-adaas": "1.19.7",
     "axios": "^1.9.0",
     "axios-retry": "4.5.0",
     "form-data": "4.0.5"
