@@ -33,6 +33,8 @@ const onTimeoutFn: (params: { adapter: any }) => Promise<void> = captured.onTime
 
 const mockAsanaClient = {
   createTaskAttachment: jest.fn(),
+  getStory: jest.fn(),
+  updateTaskComment: jest.fn(),
 };
 
 function createMockAdapter() {
@@ -159,6 +161,78 @@ describe('load-attachments worker', () => {
       });
 
       expect(result.error).toContain('Cannot resolve parent');
+    });
+
+    describe('comment attachments', () => {
+      beforeEach(async () => {
+        const axios = (await import('axios')).default;
+        (axios.get as jest.Mock).mockResolvedValue({ data: Buffer.from('file content') });
+        mockAsanaClient.createTaskAttachment.mockResolvedValue({
+          data: { data: { gid: 'attachment-1' } },
+        });
+        mockResolveExternalId.mockImplementation((_m: unknown, _s: unknown, devrevId: string) =>
+          Promise.resolve(devrevId.includes(':comment/') ? 'story-1' : 'asana-task-1')
+        );
+      });
+
+      const commentItem = {
+        parent_id: 'don:core:dvrv-us-1:devo/0:issue/1:comment/abc',
+        file_name: 'image.png',
+        url: 'https://devrev.ai/files/123',
+      };
+
+      it('should upload to the owning task, not the comment', async () => {
+        mockAsanaClient.getStory.mockResolvedValue({ data: { data: { html_text: '<body>see this</body>' } } });
+
+        const result = await createAttachment({ item: commentItem, mappers: {}, event: createMockAdapter().event });
+
+        expect(result.id).toBe('attachment-1');
+        expect(mockAsanaClient.createTaskAttachment).toHaveBeenCalledWith(
+          'asana-task-1',
+          expect.any(Buffer),
+          'image.png'
+        );
+      });
+
+      it('should embed the attachment into the comment, preserving existing text', async () => {
+        mockAsanaClient.getStory.mockResolvedValue({ data: { data: { html_text: '<body>see this</body>' } } });
+
+        await createAttachment({ item: commentItem, mappers: {}, event: createMockAdapter().event });
+
+        expect(mockAsanaClient.updateTaskComment).toHaveBeenCalledWith('story-1', {
+          data: { html_text: '<body>see this<img data-asana-gid="attachment-1"/></body>' },
+        });
+      });
+
+      it('should not re-embed an attachment that is already in the comment', async () => {
+        mockAsanaClient.getStory.mockResolvedValue({
+          data: { data: { html_text: '<body>hi <img data-asana-gid="attachment-1"/></body>' } },
+        });
+
+        await createAttachment({ item: commentItem, mappers: {}, event: createMockAdapter().event });
+
+        expect(mockAsanaClient.updateTaskComment).not.toHaveBeenCalled();
+      });
+
+      it('should still report success when re-parenting fails', async () => {
+        mockAsanaClient.getStory.mockRejectedValue(new Error('story fetch failed'));
+
+        const result = await createAttachment({ item: commentItem, mappers: {}, event: createMockAdapter().event });
+
+        expect(result.id).toBe('attachment-1');
+      });
+
+      it('should not touch comments for a plain task attachment', async () => {
+        mockResolveExternalId.mockResolvedValue('asana-task-1');
+
+        await createAttachment({
+          item: { parent_id: 'don:core:dvrv-us-1:devo/0:issue/1', file_name: 'a.pdf', url: 'https://x/1' },
+          mappers: {},
+          event: createMockAdapter().event,
+        });
+
+        expect(mockAsanaClient.updateTaskComment).not.toHaveBeenCalled();
+      });
     });
 
     it('should handle download failure', async () => {

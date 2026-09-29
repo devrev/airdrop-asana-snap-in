@@ -75,7 +75,7 @@ describe('metadata-extraction worker', () => {
 
     it('should emit MetadataExtractionError and return early when enrichMetadataWithCustomFields returns error', async () => {
       const errorMsg = 'Failed to fetch custom fields';
-      mockEnrichCustomFields.mockResolvedValue(errorMsg);
+      mockEnrichCustomFields.mockResolvedValue({ error: { message: errorMsg } });
 
       const adapter = createMockAdapter();
       await taskFn({ adapter });
@@ -89,7 +89,7 @@ describe('metadata-extraction worker', () => {
 
     it('should emit MetadataExtractionError when enrichMetadataWithSections returns error', async () => {
       const errorMsg = 'Failed to fetch sections';
-      mockEnrichSections.mockResolvedValue(errorMsg);
+      mockEnrichSections.mockResolvedValue({ error: { message: errorMsg } });
 
       const adapter = createMockAdapter();
       await taskFn({ adapter });
@@ -101,6 +101,30 @@ describe('metadata-extraction worker', () => {
       expect(mockEnrichSubtaskStages).not.toHaveBeenCalled();
     });
 
+    it('should emit MetadataExtractionDelayed and return early when custom fields are rate limited', async () => {
+      mockEnrichCustomFields.mockResolvedValue({ delay: 120 });
+
+      const adapter = createMockAdapter();
+      await taskFn({ adapter });
+
+      expect(adapter.emit).toHaveBeenCalledTimes(1);
+      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionDelayed, { delay: 120 });
+      expect(mockEnrichSections).not.toHaveBeenCalled();
+      expect(adapter._mockPush).not.toHaveBeenCalled();
+    });
+
+    it('should emit MetadataExtractionDelayed when sections are rate limited', async () => {
+      mockEnrichSections.mockResolvedValue({ delay: 45 });
+
+      const adapter = createMockAdapter();
+      await taskFn({ adapter });
+
+      expect(adapter.emit).toHaveBeenCalledTimes(1);
+      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionDelayed, { delay: 45 });
+      expect(mockEnrichSubtaskStages).not.toHaveBeenCalled();
+      expect(adapter._mockPush).not.toHaveBeenCalled();
+    });
+
     it('should create AsanaClient from adapter event', async () => {
       const adapter = createMockAdapter();
       await taskFn({ adapter });
@@ -110,15 +134,12 @@ describe('metadata-extraction worker', () => {
   });
 
   describe('onTimeout', () => {
-    it('should emit MetadataExtractionError with timeout message', async () => {
+    it('should emit MetadataExtractionProgress so the phase is re-invoked', async () => {
       const adapter = createMockAdapter();
       await onTimeoutFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionError, {
-        error: {
-          message: 'Failed to extract metadata from Asana due to timeout. Please check the logs for more details.',
-        },
-      });
+      expect(adapter.emit).toHaveBeenCalledTimes(1);
+      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionProgress);
     });
   });
 });

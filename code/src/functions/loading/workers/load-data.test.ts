@@ -33,6 +33,7 @@ const mockAsanaClient = {
   updateTask: jest.fn(),
   createTaskSubtask: jest.fn(),
   createTaskComment: jest.fn(),
+  updateTaskComment: jest.fn(),
   addTaskDependencies: jest.fn(),
   setTaskParent: jest.fn(),
   addTaskToSection: jest.fn(),
@@ -241,14 +242,112 @@ describe('load-data worker', () => {
       expect(result.error).toContain('Cannot resolve parent');
     });
 
-    it('should return success (no-op) for comment updates (not supported by Asana)', async () => {
+    it('should update the Asana comment story on edit using the external story GID', async () => {
+      mockDenormalizeComment.mockResolvedValue({
+        parentGid: 'task-1',
+        request: { data: { html_text: '<body>Edited body</body>' } },
+      });
+      mockAsanaClient.updateTaskComment.mockResolvedValue({ data: { data: { gid: 'story-1' } } });
+
+      const result = await updateComment({
+        item: { id: { devrev: 'don:1', external: 'story-1' }, data: {} },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result.error).toBeUndefined();
+      expect(result.id).toBe('story-1');
+      expect(mockAsanaClient.updateTaskComment).toHaveBeenCalledWith('story-1', {
+        data: { html_text: '<body>Edited body</body>' },
+      });
+    });
+
+    it('should resolve the external story GID via the mapper when not on the item', async () => {
+      mockResolveExternalId.mockResolvedValue('story-77');
+      mockDenormalizeComment.mockResolvedValue({
+        parentGid: 'task-1',
+        request: { data: { html_text: '<body>Edited</body>' } },
+      });
+      mockAsanaClient.updateTaskComment.mockResolvedValue({ data: { data: { gid: 'story-77' } } });
+
       const result = await updateComment({
         item: { id: { devrev: 'don:1' }, data: {} },
         mappers: {},
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toBeUndefined();
+      expect(result.id).toBe('story-77');
+      expect(mockAsanaClient.updateTaskComment).toHaveBeenCalledWith('story-77', expect.any(Object));
+    });
+
+    it('should return error when no external story GID can be resolved for an update', async () => {
+      mockResolveExternalId.mockResolvedValue(null);
+
+      const result = await updateComment({
+        item: { id: { devrev: 'don:1' }, data: {} },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result.error).toContain('No external ID');
+      expect(mockAsanaClient.updateTaskComment).not.toHaveBeenCalled();
+    });
+
+    // The baseline must equal what normalizeAsanaComment produces on the next forward sync, i.e.
+    // the story created_at, or the round-trip marks the comment "edited".
+    it('should return the story created_at as modifiedDate when creating', async () => {
+      mockDenormalizeComment.mockResolvedValue({
+        parentGid: 'task-1',
+        request: { data: { html_text: '<body>Hello</body>' } },
+      });
+      mockAsanaClient.createTaskComment.mockResolvedValue({
+        data: { data: { gid: 'story-1', created_at: '2026-08-03T13:13:45.681Z' } },
+      });
+
+      const result = await createComment({
+        item: { id: { devrev: 'don:1' }, data: {} },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result.modifiedDate).toBe('2026-08-03T13:13:45.681Z');
+    });
+
+    it('should return the story created_at as modifiedDate when updating', async () => {
+      mockDenormalizeComment.mockResolvedValue({
+        parentGid: 'task-1',
+        request: { data: { html_text: '<body>Edited</body>' } },
+      });
+      mockAsanaClient.updateTaskComment.mockResolvedValue({
+        data: { data: { gid: 'story-1', created_at: '2026-08-03T13:13:45.681Z' } },
+      });
+
+      const result = await updateComment({
+        item: { id: { devrev: 'don:1', external: 'story-1' }, data: {} },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result.modifiedDate).toBe('2026-08-03T13:13:45.681Z');
+    });
+
+    // undefined, not null: the SDK only writes external_versions for a truthy modifiedDate, and a
+    // null would be a type error on ExternalSystemItemLoadingResponse.
+    it('should omit modifiedDate when Asana returns no created_at', async () => {
+      mockDenormalizeComment.mockResolvedValue({
+        parentGid: 'task-1',
+        request: { data: { html_text: '<body>Hello</body>' } },
+      });
+      mockAsanaClient.createTaskComment.mockResolvedValue({ data: { data: { gid: 'story-1' } } });
+
+      const result = await createComment({
+        item: { id: { devrev: 'don:1' }, data: {} },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result.id).toBe('story-1');
+      expect(result.modifiedDate).toBeUndefined();
     });
   });
 

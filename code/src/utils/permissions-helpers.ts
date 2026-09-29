@@ -136,9 +136,17 @@ export async function extractPermissions(
     }
   }
 
-  // For public_to_workspace projects, add all workspace users as viewers
+  // Grant access according to the project's privacy setting.
+  //
+  // A private Asana project is only visible to its explicit members, so access must
+  // be limited to the members collected above. Only a project that is public to the
+  // whole workspace should grant workspace-wide access; otherwise every workspace
+  // user/team would inherit read access to a private project's synced tasks.
   if (privacySetting === 'public_to_workspace') {
-    console.log('Project is public_to_workspace. Adding all workspace users as viewers.');
+    // The project is visible to everyone in the workspace, so mirror that by
+    // granting all workspace users and all workspace teams VIEWER access.
+    console.log('Project is public_to_workspace. Adding all workspace users and teams as viewers.');
+
     const allUserGids = await getAllExtractedUserGids(asanaClient);
     if (!accessLevelUsers[AccessLevel.VIEWER]) {
       accessLevelUsers[AccessLevel.VIEWER] = [];
@@ -149,21 +157,29 @@ export async function extractPermissions(
         accessLevelUsers[AccessLevel.VIEWER].push(gid);
       }
     }
-  }
 
-  // Add all workspace teams as viewer groups so every group gets a role via authorization policy
-  const allTeamGids = await getAllWorkspaceTeamGids(asanaClient);
-  if (allTeamGids.length > 0) {
-    console.log(`Adding ${allTeamGids.length} workspace teams as viewer groups.`);
-    if (!accessLevelGroups[AccessLevel.VIEWER]) {
-      accessLevelGroups[AccessLevel.VIEWER] = [];
-    }
-    const existingGroupSet = new Set(accessLevelGroups[AccessLevel.VIEWER]);
-    for (const gid of allTeamGids) {
-      if (!existingGroupSet.has(gid)) {
-        accessLevelGroups[AccessLevel.VIEWER].push(gid);
+    const allTeamGids = await getAllWorkspaceTeamGids(asanaClient);
+    if (allTeamGids.length > 0) {
+      if (!accessLevelGroups[AccessLevel.VIEWER]) {
+        accessLevelGroups[AccessLevel.VIEWER] = [];
+      }
+      const existingGroupSet = new Set(accessLevelGroups[AccessLevel.VIEWER]);
+      for (const gid of allTeamGids) {
+        if (!existingGroupSet.has(gid)) {
+          accessLevelGroups[AccessLevel.VIEWER].push(gid);
+        }
       }
     }
+  } else {
+    // Private project: access is limited to the explicit project members collected
+    // above (users and teams that were directly granted access in Asana). Do NOT
+    // grant any workspace-wide access here.
+    const directUserCount = Object.values(accessLevelUsers).reduce((sum, ids) => sum + ids.length, 0);
+    const directGroupCount = Object.values(accessLevelGroups).reduce((sum, ids) => sum + ids.length, 0);
+    console.log(
+      `Private project ('${privacySetting}'): restricting access to ` +
+        `${directUserCount} direct member user(s) and ${directGroupCount} direct member team(s).`
+    );
   }
 
   if (adapter.isTimeout) {

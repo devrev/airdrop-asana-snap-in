@@ -30,15 +30,27 @@ import {
 } from './api-client/generated';
 
 export type AsanaProject = ProjectResponse;
-export type AsanaStory = StoryResponse;
+// StoryResponse omits `attachments`, but the API returns it for comment stories via opt_fields.
+export type AsanaStory = StoryResponse & {
+  attachments?: AttachmentCompact[];
+};
 export type AsanaSection = SectionResponse;
 export type AsanaTag = TagResponse;
 export type AsanaUser = UserResponse;
 export type AsanaCustomField = CustomFieldResponse;
 export type AsanaEnumOption = EnumOption;
 export type AsanaTaskMembership = TaskBaseAllOfMemberships;
+// AttachmentCompact omits the URL/host fields, but the API returns them via opt_fields. External
+// attachments (Google Drive, Dropbox, etc.) have no download_url and are surfaced via view_url.
+export type AsanaTaskAttachment = AttachmentCompact & {
+  download_url?: string | null;
+  view_url?: string | null;
+  permanent_url?: string | null;
+  host?: string | null;
+  created_at?: string;
+};
 export type AsanaTask = TaskResponse & {
-  attachments?: AttachmentCompact[];
+  attachments?: AsanaTaskAttachment[];
 };
 
 export type { NextPage };
@@ -81,7 +93,7 @@ export type GetAsanaSectionsResponse = ListResponse<AsanaSection>;
 
 export type AsanaAttachment = {
   gid?: string;
-  download_url?: string;
+  download_url?: string | null;
   name?: string;
   parent_id?: string;
   inline?: boolean;

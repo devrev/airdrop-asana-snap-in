@@ -1,7 +1,12 @@
+import type { AsanaTask } from '@asana/types';
+
 import {
+  buildExternalAttachmentLinks,
+  externalAttachmentUrl,
   extractAttachmentGidFromCommentText,
   extractAttachmentsFromTask,
   extractInlineAttachmentGids,
+  isExternalAttachment,
   stripAssetUrlsFromText,
 } from './attachment-helpers';
 
@@ -322,5 +327,97 @@ describe('extractInlineAttachmentGids', () => {
   it('should ignore img tags without data-asana-gid', () => {
     const html = '<img src="https://example.com/photo.png" alt="photo">';
     expect(extractInlineAttachmentGids(html)).toEqual(new Set());
+  });
+});
+
+describe('isExternalAttachment', () => {
+  it('treats a gdrive attachment (no download_url, has view_url) as external', () => {
+    expect(
+      isExternalAttachment({ gid: '1', name: 'doc', host: 'gdrive', download_url: null, view_url: 'https://docs.google.com/x' })
+    ).toBe(true);
+  });
+
+  it('treats an Asana-hosted attachment (has download_url) as not external', () => {
+    expect(
+      isExternalAttachment({ gid: '1', name: 'file.png', download_url: 'https://asana/file.png', view_url: null })
+    ).toBe(false);
+  });
+
+  it('is not external when there is neither a download_url nor a view/permanent url', () => {
+    expect(isExternalAttachment({ gid: '1', name: 'x' })).toBe(false);
+  });
+
+  it('is external when only permanent_url is present', () => {
+    expect(isExternalAttachment({ gid: '1', name: 'x', permanent_url: 'https://app.asana.com/app/asana/-/get_asset?asset_id=1' })).toBe(true);
+  });
+});
+
+describe('externalAttachmentUrl', () => {
+  it('prefers view_url over permanent_url', () => {
+    expect(externalAttachmentUrl({ gid: '1', view_url: 'https://view', permanent_url: 'https://perm' })).toBe('https://view');
+  });
+
+  it('falls back to permanent_url when view_url is absent', () => {
+    expect(externalAttachmentUrl({ gid: '1', permanent_url: 'https://perm' })).toBe('https://perm');
+  });
+
+  it('returns null when no link is present', () => {
+    expect(externalAttachmentUrl({ gid: '1' })).toBeNull();
+  });
+});
+
+describe('buildExternalAttachmentLinks', () => {
+  it('returns null when the task has no attachments', () => {
+    expect(buildExternalAttachmentLinks({ gid: 't1' } as AsanaTask)).toBeNull();
+  });
+
+  it('returns null when all attachments are Asana-hosted (have download_url)', () => {
+    const task = {
+      gid: 't1',
+      attachments: [{ gid: 'a1', name: 'file.png', download_url: 'https://asana/file.png' }],
+    } as AsanaTask;
+    expect(buildExternalAttachmentLinks(task)).toBeNull();
+  });
+
+  it('renders a gdrive attachment as a Markdown link with a host label', () => {
+    const task = {
+      gid: 't1',
+      attachments: [
+        {
+          gid: 'a1',
+          name: 'Design doc',
+          host: 'gdrive',
+          download_url: null,
+          view_url: 'https://docs.google.com/document/d/abc/edit',
+        },
+      ],
+    } as AsanaTask;
+    expect(buildExternalAttachmentLinks(task)).toBe(
+      '**Attachments:**\n- [Design doc](https://docs.google.com/document/d/abc/edit) (Google Drive)'
+    );
+  });
+
+  it('lists multiple external attachments and skips Asana-hosted ones', () => {
+    const task = {
+      gid: 't1',
+      attachments: [
+        { gid: 'a1', name: 'file.png', download_url: 'https://asana/file.png' },
+        { gid: 'a2', name: 'Sheet', host: 'gdrive', view_url: 'https://docs.google.com/spreadsheets/d/xyz' },
+        { gid: 'a3', name: 'Box file', host: 'box', view_url: 'https://box.com/f/1' },
+      ],
+    } as AsanaTask;
+    expect(buildExternalAttachmentLinks(task)).toBe(
+      '**Attachments:**\n' +
+        '- [Sheet](https://docs.google.com/spreadsheets/d/xyz) (Google Drive)\n' +
+        '- [Box file](https://box.com/f/1) (Box)'
+    );
+  });
+
+  it('omits the host label for an unknown host and falls back to a default name', () => {
+    const task = {
+      gid: 't1',
+      attachments: [{ gid: 'a1', name: '  ', host: 'someunknownhost', view_url: 'https://x/y' }],
+    } as AsanaTask;
+    expect(buildExternalAttachmentLinks(task)).toBe('**Attachments:**\n- [Attachment](https://x/y)');
   });
 });

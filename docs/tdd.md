@@ -6,7 +6,7 @@
 | Author        | Radovan Jorgić                                                                             |
 | Status        | Beta — extraction (incl. permissions) and loading complete for all P0 record types         |
 | Created On    | December 2025                                                                              |
-| Repository    | [airdrop-asana-snap-in-internal](https://github.com/devrev/airdrop-asana-snap-in-internal) |
+| Repository    | [airdrop-asana-snap-in](https://github.com/devrev/airdrop-asana-snap-in)                   |
 | PRD           | [docs/prd.md](../docs/prd.md)                                                              |
 
 # 1. Product Overview
@@ -243,9 +243,11 @@ For time-scoped and incremental syncs, tasks are filtered using the `modified_si
 | :------------------ | :-------------------- | :---------------------------------------------- |
 | Requests per minute | 1,500                 | Applies to all API tiers (Standard and Premium) |
 | Response code       | 429 Too Many Requests | Returned when rate limit is exceeded            |
-| Retry strategy      | `Retry-After` header  | Exponential backoff with `Retry-After` value    |
+| Retry strategy      | `Retry-After` header  | Emit `*_DELAYED` with the `Retry-After` value   |
 
-The `AsanaClient` uses `axios-retry` with exponential backoff (1s, 2s, 4s) for 5xx errors and network errors. 429 responses are handled at the worker level by reading the `Retry-After` header and returning a delay for framework retry.
+The `AsanaClient` uses `axios-retry` (3 attempts, exponential backoff 2s, 4s, 8s) for network errors and 5xx responses only. 429s are never retried in-process: sleeping on `Retry-After` inside the worker could run it into the Lambda hard timeout.
+
+Instead, `handleExtractionError`/`handleLoadingError` turn a 429 into `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker emits a `*_DELAYED` event so the platform reschedules the phase. This covers metadata (`MetadataExtractionDelayed`), data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no `*_DELAYED` event, so a 429 there fails the phase with a "retry in N seconds" message.
 
 ### 2.4.2 Pagination
 
@@ -273,7 +275,7 @@ The `AsanaClient` uses `axios-retry` with exponential backoff (1s, 2s, 4s) for 5
 | 401  | Unauthorized          | Token expired or invalid; re-authenticate    |
 | 403  | Forbidden             | Insufficient permissions; log and skip       |
 | 404  | Not Found             | Object deleted or inaccessible; log and skip |
-| 429  | Too Many Requests     | Wait for `Retry-After` duration, then retry  |
+| 429  | Too Many Requests     | Emit `*_DELAYED` (ESU phase: fail)           |
 | 500  | Internal Server Error | Retry with exponential backoff               |
 
 ## 2.5 Metadata Extraction
@@ -300,6 +302,8 @@ During the metadata extraction phase, the connector:
 3. For subtasks, a simplified stage diagram is generated:
    - `open` (not completed) — maps to state `open`
    - `completed` (completed) — maps to state `closed` (with `is_end_state: true`)
+
+If fetching custom fields or sections hits a 429, the worker emits `MetadataExtractionDelayed` with the `Retry-After` value (60s fallback). Any other failure emits `MetadataExtractionError`. On soft timeout, `onTimeout` emits `MetadataExtractionProgress`. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
 
 ## 2.6 Data Extraction Architecture
 

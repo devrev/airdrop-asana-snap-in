@@ -1,6 +1,7 @@
 import { AirSyncDefaultItemTypes, ExtractorEventType, processTask } from '@devrev/ts-adaas';
 
 import { AsanaClient } from '@asana/api-client';
+import { handleExtractionError } from '@utils/data-helpers';
 import { buildExternalSyncUnits, checkUserWorkspaceRole, fetchAllProjects } from '@utils/external-sync-units-helpers';
 import { serializeError } from '@utils/serialize-error';
 
@@ -18,11 +19,12 @@ processTask<ExtractorState>({
     try {
       asanaProjects = await fetchAllProjects(asanaClient);
     } catch (error) {
-      await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionError, {
-        error: {
-          message: `Error paginating projects list from Asana: ${serializeError(error)}`,
-        },
-      });
+      // This phase has no *_DELAYED event, so a rate limit fails it and the user retries later.
+      const { delay } = handleExtractionError(error);
+      const message = delay
+        ? `Rate limited by Asana (HTTP 429) while listing projects. Retry in ${delay} seconds.`
+        : `Error paginating projects list from Asana: ${serializeError(error)}`;
+      await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionError, { error: { message } });
       return;
     }
     console.log(`Fetched ${asanaProjects.length} projects from Asana workspace. Building sync units...`);

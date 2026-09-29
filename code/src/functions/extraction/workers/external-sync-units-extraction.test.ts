@@ -1,4 +1,5 @@
 import { ExtractorEventType, processTask } from '@devrev/ts-adaas';
+import { AxiosError, type AxiosResponse } from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
 import { buildExternalSyncUnits, checkUserWorkspaceRole, fetchAllProjects } from '@utils/external-sync-units-helpers';
@@ -8,6 +9,7 @@ jest.mock('@devrev/ts-adaas', () => ({
   processTask: jest.fn(),
   ExtractorEventType: jest.requireActual('@devrev/ts-adaas').ExtractorEventType,
   AirSyncDefaultItemTypes: jest.requireActual('@devrev/ts-adaas').AirSyncDefaultItemTypes,
+  axios: jest.requireActual('@devrev/ts-adaas').axios,
 }));
 jest.mock('@asana/api-client');
 jest.mock('@utils/external-sync-units-helpers');
@@ -97,6 +99,26 @@ describe('external-sync-units-extraction worker', () => {
       expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.ExternalSyncUnitExtractionError, {
         error: {
           message: expect.stringContaining('Error paginating projects list from Asana'),
+        },
+      });
+      expect(mockBuildExternalSyncUnits).not.toHaveBeenCalled();
+    });
+
+    it('should emit ExternalSyncUnitExtractionError with a retry hint when Asana rate limits', async () => {
+      mockFetchAllProjects.mockRejectedValue(
+        new AxiosError('Too Many Requests', '429', undefined, undefined, {
+          status: 429,
+          headers: { 'retry-after': '90' },
+        } as unknown as AxiosResponse)
+      );
+
+      const adapter = createMockAdapter();
+      await taskFn({ adapter });
+
+      expect(adapter.emit).toHaveBeenCalledTimes(1);
+      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.ExternalSyncUnitExtractionError, {
+        error: {
+          message: 'Rate limited by Asana (HTTP 429) while listing projects. Retry in 90 seconds.',
         },
       });
       expect(mockBuildExternalSyncUnits).not.toHaveBeenCalled();

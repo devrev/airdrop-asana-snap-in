@@ -30,7 +30,7 @@ async function stream({
       console.warn(`Rate limited while streaming attachment (url=${url}). Delaying for ${delay}s.`);
       return { delay };
     } else {
-      console.error(`Failed to stream attachment (url=${url}): ${extractionError?.message}`);
+      console.warn(`Failed to stream attachment (url=${url}): ${extractionError?.message}`);
       return { error: extractionError };
     }
   }

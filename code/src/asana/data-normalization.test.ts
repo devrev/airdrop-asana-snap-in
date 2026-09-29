@@ -276,6 +276,54 @@ describe('normalizeAsanaTask', () => {
 
     expect(result.created_date).toBe('2025-06-15T12:00:00.000Z');
   });
+
+  it('appends external (gdrive) attachments as a link block to the description', () => {
+    const task: AsanaTask = {
+      ...fullTask,
+      html_notes: '<body>Description here</body>',
+      attachments: [
+        { gid: 'a1', name: 'Design doc', host: 'gdrive', download_url: null, view_url: 'https://docs.google.com/document/d/abc/edit' },
+      ],
+    };
+
+    const result = normalizeAsanaTask(task);
+    const data = result.data as Data;
+
+    expect(data.description).toEqual([
+      'Description here',
+      '\n\n**Attachments:**\n- [Design doc](https://docs.google.com/document/d/abc/edit) (Google Drive)',
+    ]);
+  });
+
+  it('surfaces an external attachment even when the task has no description', () => {
+    const task: AsanaTask = {
+      ...fullTask,
+      html_notes: undefined,
+      attachments: [
+        { gid: 'a1', name: 'Sheet', host: 'gdrive', view_url: 'https://docs.google.com/spreadsheets/d/xyz' },
+      ],
+    };
+
+    const result = normalizeAsanaTask(task);
+    const data = result.data as Data;
+
+    expect(data.description).toEqual([
+      '\n\n**Attachments:**\n- [Sheet](https://docs.google.com/spreadsheets/d/xyz) (Google Drive)',
+    ]);
+  });
+
+  it('does not alter the description when attachments are Asana-hosted', () => {
+    const task: AsanaTask = {
+      ...fullTask,
+      html_notes: '<body>Description here</body>',
+      attachments: [{ gid: 'a1', name: 'file.png', download_url: 'https://asana/file.png' }],
+    };
+
+    const result = normalizeAsanaTask(task);
+    const data = result.data as Data;
+
+    expect(data.description).toEqual(['Description here']);
+  });
 });
 
 describe('normalizeAsanaSubtask', () => {
@@ -338,6 +386,24 @@ describe('normalizeAsanaSubtask', () => {
     const data = result.data as Data;
 
     expect(data['cf1']).toBe(5);
+  });
+
+  it('appends external attachments as a link block to the subtask description', () => {
+    const subtask: AsanaTask = {
+      ...baseSubtask,
+      html_notes: '<body>Sub description</body>',
+      attachments: [
+        { gid: 'a1', name: 'Spec', host: 'dropbox', view_url: 'https://dropbox.com/s/spec' },
+      ],
+    };
+
+    const result = normalizeAsanaSubtask(subtask);
+    const data = result.data as Data;
+
+    expect(data.description).toEqual([
+      'Sub description',
+      '\n\n**Attachments:**\n- [Spec](https://dropbox.com/s/spec) (Dropbox)',
+    ]);
   });
 });
 

@@ -2,7 +2,7 @@
 
 ![Coverage](https://img.shields.io/badge/coverage-0%25-red)
 
-Internal repository for the Asana AirSync connector. This is the source that gets deployed to the DevRev marketplace. See the [public repository](https://github.com/devrev/airdrop-asana-snap-in) for example implementation and the [Asana AirSync documentation](https://developer.devrev.ai/snap-in-development/tutorials/airsync/asana) for detailed setup and usage instructions.
+Asana AirSync connector for DevRev. This is the source of the snap-in published to the DevRev marketplace. See the [Asana AirSync documentation](https://developer.devrev.ai/snap-in-development/tutorials/airsync/asana) for detailed setup and usage instructions.
 
 ## Prerequisites
 

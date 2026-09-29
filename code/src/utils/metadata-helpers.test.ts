@@ -1,4 +1,5 @@
 import type { ExternalDomainMetadata } from '@devrev/ts-adaas';
+import { AxiosError, type AxiosResponse } from 'axios';
 
 import type { AsanaCustomField, AsanaEnumOption, AsanaSection } from '@asana/types';
 
@@ -12,6 +13,13 @@ import {
   enrichMetadataWithSections,
   enrichMetadataWithSubtaskStages,
 } from './metadata-helpers';
+
+function createRateLimitError(retryAfter?: string) {
+  return new AxiosError('Too Many Requests', '429', undefined, undefined, {
+    status: 429,
+    headers: retryAfter ? { 'retry-after': retryAfter } : {},
+  } as unknown as AxiosResponse);
+}
 
 describe('buildCustomFieldDefinition', () => {
   describe('text fields', () => {
@@ -449,11 +457,30 @@ describe('enrichMetadataWithCustomFields', () => {
     } as any;
     const metadata = createBaseMetadata();
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     const result = await enrichMetadataWithCustomFields(metadata, client);
-    consoleSpy.mockRestore();
 
-    expect(result).toContain('Error fetching custom fields from Asana:');
+    expect(result?.delay).toBeUndefined();
+    expect(result?.error?.message).toContain('Error fetching custom fields from Asana:');
+  });
+
+  it('should return a delay when Asana rate limits the request', async () => {
+    const client = {
+      getCustomFieldSettingsForProject: jest.fn().mockRejectedValue(createRateLimitError('120')),
+    } as any;
+
+    const result = await enrichMetadataWithCustomFields(createBaseMetadata(), client);
+
+    expect(result).toEqual({ delay: 120 });
+  });
+
+  it('should default the delay to 60s when Retry-After is missing', async () => {
+    const client = {
+      getCustomFieldSettingsForProject: jest.fn().mockRejectedValue(createRateLimitError()),
+    } as any;
+
+    const result = await enrichMetadataWithCustomFields(createBaseMetadata(), client);
+
+    expect(result).toEqual({ delay: 60 });
   });
 
   it('should handle empty custom fields gracefully', async () => {
@@ -513,11 +540,20 @@ describe('enrichMetadataWithSections', () => {
     } as any;
     const metadata = createBaseMetadata();
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     const result = await enrichMetadataWithSections(metadata, client);
-    consoleSpy.mockRestore();
 
-    expect(result).toContain('Error fetching sections from Asana');
+    expect(result?.delay).toBeUndefined();
+    expect(result?.error?.message).toContain('Error fetching sections from Asana');
+  });
+
+  it('should return a delay when Asana rate limits the request', async () => {
+    const client = {
+      getSectionsForProject: jest.fn().mockRejectedValue(createRateLimitError('45')),
+    } as any;
+
+    const result = await enrichMetadataWithSections(createBaseMetadata(), client);
+
+    expect(result).toEqual({ delay: 45 });
   });
 
   it('should handle empty sections gracefully', async () => {
