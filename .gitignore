@@ -52,4 +52,3 @@ code/scripts/generate-mock-data/mock-data-manifest.json
 
 # Internal deploy config lives in the deployer repo
 marketplace.yaml
-.devrev/
