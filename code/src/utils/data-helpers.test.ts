@@ -255,9 +255,10 @@ describe('extractCustomFields', () => {
     expect(extractCustomFields(fields as any)).toEqual({ cf1: '2024-06-15T14:00:00.000Z' });
   });
 
-  it('should fall back to date_value.date when date_time is missing', () => {
+  it('should normalize a date-only value to an ISO-8601 timestamp when date_time is missing (ISS-317765)', () => {
+    // The DevRev field is declared as 'timestamp', so a bare YYYY-MM-DD must be normalized.
     const fields = [{ gid: 'cf1', name: 'Deadline', type: 'date', date_value: { date: '2024-06-15' } }];
-    expect(extractCustomFields(fields as any)).toEqual({ cf1: '2024-06-15' });
+    expect(extractCustomFields(fields as any)).toEqual({ cf1: '2024-06-15T00:00:00.000Z' });
   });
 
   it('should extract people field as array of GIDs', () => {
@@ -607,9 +608,21 @@ describe('extractTaskWithSubtasks', () => {
     } as any;
   }
 
-  function createMockAdapter() {
+  // mappedGids: attachment GIDs that already have an artifact mapping; anything else 404s.
+  function createMockAdapter(options?: { mappedGids?: string[] }) {
+    const mapped = new Set(options?.mappedGids ?? []);
     return {
       shouldExtract: jest.fn().mockReturnValue(true),
+      event: {
+        payload: { event_context: { sync_unit: 'sync-unit-1' } },
+      },
+      mappers: {
+        getByExternalId: jest.fn().mockImplementation(({ external_id }: { external_id: string }) =>
+          mapped.has(external_id)
+            ? Promise.resolve({ data: { sync_mapper_record: { id: `smr-${external_id}` } } })
+            : Promise.resolve({ data: {} })
+        ),
+      },
     } as any;
   }
 
@@ -693,6 +706,58 @@ describe('extractTaskWithSubtasks', () => {
 
     expect(buffer.attachments).toHaveLength(1);
     expect(buffer.attachments[0].gid).toBe('att1');
+  });
+
+  it('should re-parent a comment-attached file to its comment', async () => {
+    const task = {
+      gid: 't1',
+      attachments: [
+        { gid: 'att1', name: 'spec.pdf', download_url: 'https://example.com/spec.pdf' },
+        { gid: 'att2', name: 'task-level.pdf', download_url: 'https://example.com/task.pdf' },
+      ],
+    };
+    const client = createMockAsanaClient({
+      stories: [
+        {
+          gid: 'c1',
+          type: 'comment',
+          text: 'See attached',
+          created_at: '2024-01-01T00:00:00Z',
+          attachments: [{ gid: 'att1', name: 'spec.pdf' }],
+        },
+      ],
+    });
+    const buffer = createEmptyBuffer();
+
+    await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, createMockAdapter(), 0);
+
+    const commentAtt = buffer.attachments.find((a) => a.gid === 'att1');
+    const taskAtt = buffer.attachments.find((a) => a.gid === 'att2');
+    expect(commentAtt?.parent_id).toBe('c1'); // re-parented to the comment
+    expect(taskAtt?.parent_id).toBe('t1'); // unclaimed attachment stays on the task
+  });
+
+  it('should extract a comment that carries an attachment even with empty text', async () => {
+    const task = {
+      gid: 't1',
+      attachments: [{ gid: 'att1', name: 'img.png', download_url: 'https://example.com/img.png' }],
+    };
+    const client = createMockAsanaClient({
+      stories: [
+        {
+          gid: 'c1',
+          type: 'comment',
+          text: '',
+          created_at: '2024-01-01T00:00:00Z',
+          attachments: [{ gid: 'att1', name: 'img.png' }],
+        },
+      ],
+    });
+    const buffer = createEmptyBuffer();
+
+    await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, createMockAdapter(), 0);
+
+    expect(buffer.comments.map((c) => c.gid)).toContain('c1');
   });
 
   it('should create dependency links from task.dependencies at depth 0', async () => {
@@ -797,6 +862,61 @@ describe('extractTaskWithSubtasks', () => {
     const buffer = createEmptyBuffer();
 
     await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, createMockAdapter(), 0, undefined, '2024-03-01T00:00:00Z');
+
+    expect(buffer.attachments).toHaveLength(1);
+    expect(buffer.attachments[0].gid).toBe('att1');
+  });
+
+  it('should skip attachments already mapped to a DevRev artifact on incremental runs', async () => {
+    const task = {
+      gid: 't1',
+      attachments: [
+        { gid: 'loaded-by-us', name: 'image.png', created_at: '2024-06-15T00:00:00Z', download_url: 'https://example.com/a.png' },
+        { gid: 'new-in-asana', name: 'fresh.pdf', created_at: '2024-06-16T00:00:00Z', download_url: 'https://example.com/b.pdf' },
+      ],
+    };
+    const client = createMockAsanaClient();
+    const buffer = createEmptyBuffer();
+
+    const adapter = createMockAdapter({ mappedGids: ['loaded-by-us'] });
+    await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, adapter, 0, '2024-06-01T00:00:00Z');
+
+    expect(buffer.attachments).toHaveLength(1);
+    expect(buffer.attachments[0].gid).toBe('new-in-asana');
+  });
+
+  it('should not check mappings on an initial run, where nothing is mapped yet', async () => {
+    const task = {
+      gid: 't1',
+      attachments: [
+        { gid: 'att1', name: 'a.pdf', created_at: '2024-06-15T00:00:00Z', download_url: 'https://example.com/a.pdf' },
+      ],
+    };
+    const client = createMockAsanaClient();
+    const buffer = createEmptyBuffer();
+
+    // No extractFrom => initial sync.
+    const adapter = createMockAdapter();
+    await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, adapter, 0);
+
+    expect(buffer.attachments).toHaveLength(1);
+    expect(adapter.mappers.getByExternalId).not.toHaveBeenCalled();
+  });
+
+  it('should keep an attachment when the mapping lookup fails, rather than drop data', async () => {
+    const task = {
+      gid: 't1',
+      attachments: [
+        { gid: 'att1', name: 'a.pdf', created_at: '2024-06-15T00:00:00Z', download_url: 'https://example.com/a.pdf' },
+      ],
+    };
+    const client = createMockAsanaClient();
+    const buffer = createEmptyBuffer();
+
+    const adapter = createMockAdapter();
+    adapter.mappers.getByExternalId = jest.fn().mockRejectedValue(new Error('mapper service unavailable'));
+
+    await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, adapter, 0, '2024-06-01T00:00:00Z');
 
     expect(buffer.attachments).toHaveLength(1);
     expect(buffer.attachments[0].gid).toBe('att1');

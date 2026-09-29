@@ -9,6 +9,7 @@ import { LoaderEventType, processTask } from '@devrev/ts-adaas';
 import { AsanaClient } from '@asana/api-client';
 import { ItemType, LinkType } from '@asana/constants';
 import { denormalizeComment, denormalizeLink, denormalizeTask } from '@asana/data-denormalization';
+import { toTimestamp } from '@utils/field-extraction-helpers';
 import { handleLoadingError, resolveExternalId, resolveRef } from '@utils/loading-helpers';
 import { serializeError } from '@utils/serialize-error';
 
@@ -186,7 +187,12 @@ async function createComment({
     const response = await asanaClient.createTaskComment(parentGid, request);
     const commentGid = response.data?.data?.gid;
 
-    return { id: commentGid };
+    // Seeds the external_versions baseline that stops this write from being re-imported, and the
+    // comment falsely flagged "edited". Asana stories have no modified_at, so the value must match
+    // normalizeAsanaComment, which uses created_at as modified_date.
+    const modifiedDate = toTimestamp(response.data?.data?.created_at) ?? undefined;
+
+    return { id: commentGid, modifiedDate };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -194,9 +200,27 @@ async function createComment({
 
 async function updateComment({
   item,
+  mappers,
+  event,
 }: ExternalSystemItemLoadingParams<ExternalSystemItem>): Promise<ExternalSystemItemLoadingResponse> {
-  // Asana does not support comment updates — return existing external ID as a no-op
-  return { id: item.id.external };
+  try {
+    const resolveId = buildResolver(mappers, event);
+    let storyGid = item.id.external;
+    if (!storyGid) {
+      storyGid = (await resolveId(item.id.devrev)) ?? undefined;
+    }
+    if (!storyGid) return { error: `No external ID for comment update. commentDevrevId=${item.id.devrev}` };
+
+    const asanaClient = new AsanaClient(event);
+    const { request } = await denormalizeComment(item.data, resolveId);
+
+    const response = await asanaClient.updateTaskComment(storyGid, request);
+    const modifiedDate = toTimestamp(response.data?.data?.created_at) ?? undefined;
+
+    return { id: storyGid, modifiedDate };
+  } catch (error) {
+    return handleLoadingError(error);
+  }
 }
 
 async function createLink({

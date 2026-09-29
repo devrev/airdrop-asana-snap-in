@@ -60,9 +60,17 @@ export default tseslint.config(
     },
   },
 
-  // Test files: relax no-explicit-any for mock objects
+  // Test files: relax no-explicit-any for mock objects.
+  // Disable type-aware parsing here because *.test.ts files are intentionally
+  // excluded from tsconfig.json (they must not land in the build output), so
+  // `parserOptions.project` cannot resolve them.
   {
     files: ["**/*.test.ts", "**/*.spec.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: false,
+      },
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
     },

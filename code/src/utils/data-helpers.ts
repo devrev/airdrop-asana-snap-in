@@ -1,4 +1,4 @@
-import { axios, ErrorRecord, EventType, SyncMode, WorkerAdapter } from '@devrev/ts-adaas';
+import { axios, ErrorRecord, EventType, SyncMapperRecordTargetType, SyncMode, WorkerAdapter } from '@devrev/ts-adaas';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType, LinkType, MAX_SUBTASK_DEPTH, StoryType } from '@asana/constants';
@@ -192,6 +192,58 @@ export async function fetchTeamMemberUserGids(teamGid: string, asanaClient: Asan
   return userGids;
 }
 
+/**
+ * Drop attachments that the sync mapper already links to a DevRev artifact.
+ *
+ * Files loaded during a reverse sync get a fresh Asana `created_at`, so the incremental window keeps
+ * re-importing them as new artifacts. No `external_versions` baseline is written, so the mapper
+ * record is the only marker that DevRev already holds the file.
+ */
+export async function filterAlreadyMappedAttachments(
+  attachments: AsanaAttachment[],
+  adapter: WorkerAdapter<ExtractorState>
+): Promise<AsanaAttachment[]> {
+  const syncUnit = adapter.event.payload.event_context.sync_unit;
+  const kept: AsanaAttachment[] = [];
+
+  for (const attachment of attachments) {
+    if (!attachment.gid) {
+      kept.push(attachment);
+      continue;
+    }
+
+    try {
+      const response = await adapter.mappers.getByExternalId({
+        sync_unit: syncUnit,
+        external_id: attachment.gid,
+        target_type: SyncMapperRecordTargetType.ARTIFACT,
+      });
+
+      if (response.data?.sync_mapper_record) {
+        console.log(
+          `Attachment extraction: skipping ${attachment.gid} ("${attachment.name}") — ` +
+            `already mapped to a DevRev artifact.`
+        );
+        continue;
+      }
+
+      kept.push(attachment);
+    } catch (error) {
+      // 404 means no mapping yet, i.e. a new attachment. Any other failure is only logged, since a
+      // failed lookup must not silently drop the file.
+      if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
+        console.warn(
+          `Attachment extraction: could not check mapper record for ${attachment.gid}, ` +
+            `extracting it anyway: ${serializeError(error)}`
+        );
+      }
+      kept.push(attachment);
+    }
+  }
+
+  return kept;
+}
+
 /** Fetch all comments for a given task, filtering to comment-type stories. */
 export async function fetchCommentsForTask(taskGid: string, asanaClient: AsanaClient): Promise<AsanaStory[]> {
   const comments: AsanaStory[] = [];
@@ -260,10 +312,10 @@ export async function extractTaskWithSubtasks(
     const comments = await fetchCommentsForTask(task.gid ?? '', asanaClient);
     const inlineAttachmentGids = extractInlineAttachmentGids(task.html_notes);
 
-    // Build a map of attachment GIDs to comment GIDs for image attachments posted via comments
-    // Also track which comments are image-only (should be extracted)
+    // attachment GID -> owning comment GID, so comment attachments re-parent to the comment not the
+    // task. attachmentCommentGids: comments to extract even when they have no text body.
     const attachmentToCommentMap = new Map<string, string>();
-    const imageOnlyCommentGids = new Set<string>();
+    const attachmentCommentGids = new Set<string>();
 
     for (const comment of comments) {
       const commentInlineGids = extractInlineAttachmentGids(comment.html_text);
@@ -273,10 +325,18 @@ export async function extractTaskWithSubtasks(
 
       if (!comment.gid) continue;
 
+      // story.attachments links files/images posted in a comment to that comment.
+      for (const att of comment.attachments ?? []) {
+        if (att.gid) {
+          attachmentToCommentMap.set(att.gid, comment.gid);
+          attachmentCommentGids.add(comment.gid);
+        }
+      }
+
       const attachmentGid = extractAttachmentGidFromCommentText(comment.text);
       if (attachmentGid && commentInlineGids.has(attachmentGid)) {
         attachmentToCommentMap.set(attachmentGid, comment.gid);
-        imageOnlyCommentGids.add(comment.gid);
+        attachmentCommentGids.add(comment.gid);
       }
     }
 
@@ -292,14 +352,19 @@ export async function extractTaskWithSubtasks(
         return true;
       });
 
-      if (filteredAttachments.length > 0) {
-        buffer.attachments.push(...filteredAttachments);
+      // Incremental only: an initial sync has no mappings, so every lookup would 404 for nothing.
+      const newAttachments = extractFrom
+        ? await filterAlreadyMappedAttachments(filteredAttachments, adapter)
+        : filteredAttachments;
+
+      if (newAttachments.length > 0) {
+        buffer.attachments.push(...newAttachments);
       }
     }
 
     if (adapter.shouldExtract(ItemType.COMMENTS)) {
       const filteredComments = comments.filter((comment) => {
-        if (comment.gid && imageOnlyCommentGids.has(comment.gid)) {
+        if (comment.gid && attachmentCommentGids.has(comment.gid)) {
           const createdAt = comment.created_at;
           if (extractFrom && !(createdAt && createdAt >= extractFrom)) return false;
           if (extractTo && createdAt && createdAt > extractTo) return false;

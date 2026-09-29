@@ -1,4 +1,4 @@
-import type { AsanaAttachment, AsanaTask } from '@asana/types';
+import type { AsanaAttachment, AsanaTask, AsanaTaskAttachment } from '@asana/types';
 
 const INLINE_IMG_GID_REGEX = /<img[^>]*data-asana-gid="([^"]+)"[^>]*>/gi;
 
@@ -44,6 +44,61 @@ export function stripAssetUrlsFromText(text: string | null | undefined): string 
     return '';
   }
   return text.replace(ASANA_ASSET_URL_GLOBAL_REGEX, '').trim();
+}
+
+/**
+ * External attachments (Google Drive, Dropbox, OneDrive, Box, external URLs) are hosted outside
+ * Asana and have no download_url, so they cannot be streamed as blobs. They are identified by the
+ * presence of a view_url (or permanent_url) without a download_url.
+ */
+export function isExternalAttachment(attachment: AsanaTaskAttachment): boolean {
+  return !attachment.download_url && !!(attachment.view_url || attachment.permanent_url);
+}
+
+/** Pick the best usable link for an external attachment (the viewer URL, else Asana's asset URL). */
+export function externalAttachmentUrl(attachment: AsanaTaskAttachment): string | null {
+  return attachment.view_url || attachment.permanent_url || null;
+}
+
+/**
+ * Build a Markdown links block for a task's external attachments, to append to the item body.
+ * Returns null when the task has no external attachments. External files can't be synced as
+ * DevRev attachments (no downloadable blob), so we surface them as links instead of dropping them.
+ */
+export function buildExternalAttachmentLinks(task: AsanaTask): string | null {
+  const external = (task.attachments ?? []).filter(isExternalAttachment);
+  if (external.length === 0) {
+    return null;
+  }
+
+  const lines = external
+    .map((attachment) => {
+      const url = externalAttachmentUrl(attachment);
+      if (!url) return null;
+      const name = attachment.name?.trim() || 'Attachment';
+      const host = formatAttachmentHost(attachment.host);
+      return `- [${name}](${url})${host ? ` (${host})` : ''}`;
+    })
+    .filter((line): line is string => !!line);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return `**Attachments:**\n${lines.join('\n')}`;
+}
+
+/** Map an Asana attachment host id to a human-readable label. */
+function formatAttachmentHost(host: string | null | undefined): string | null {
+  if (!host) return null;
+  const labels: Record<string, string> = {
+    gdrive: 'Google Drive',
+    dropbox: 'Dropbox',
+    box: 'Box',
+    onedrive: 'OneDrive',
+    external: 'External',
+  };
+  return labels[host] ?? null;
 }
 
 /** Extract attachments from a task, marking inline status and mapping comment parents. */

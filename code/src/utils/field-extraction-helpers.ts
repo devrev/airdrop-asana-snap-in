@@ -64,7 +64,10 @@ export function extractCustomFields(
         break;
       case CustomFieldType.DATE:
         if (field.date_value) {
-          fieldValue = field.date_value.date_time || field.date_value.date || null;
+          // ISS-317765 fix: the DevRev field is declared as 'timestamp' (metadata-helpers.ts:20
+          // DATE->timestamp), so a date-only value must be normalized to a full ISO-8601 timestamp.
+          // A bare 'YYYY-MM-DD' is not a valid timestamp and gets dropped / errors the record sync.
+          fieldValue = toTimestamp(field.date_value.date_time || field.date_value.date);
         }
         break;
       case CustomFieldType.PEOPLE:

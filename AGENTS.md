@@ -48,7 +48,7 @@ Each worker must emit exactly one response event per invocation:
 
 - `*_DONE` — phase completed successfully
 - `*_PROGRESS` — runtime limit reached; AirSync will restart the snap-in immediately with a `*_CONTINUE` event
-- `*_DELAY` — rate-limited by external system; AirSync will restart after the specified delay (seconds)
+- `*_DELAY` — rate-limited by external system; AirSync will restart after the specified delay (seconds). Exists for metadata, data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no delay or progress event and must emit `*_DONE` or `*_ERROR`
 - `*_ERROR` — phase failed
 
 ### Execution flow
@@ -73,9 +73,8 @@ flowchart LR
 ## Repository Structure
 
 ```
-airdrop-asana-snap-in-internal/
+airdrop-asana-snap-in/
 ├── manifest.yaml                    # Snap-in manifest (functions, keyrings, imports)
-├── marketplace.yaml                 # Per-environment marketplace config (dev/qa/prod)
 ├── docs/
 │   ├── prd.md                       # Product requirements document
 │   └── tdd.md                       # Technical design document
@@ -152,7 +151,7 @@ airdrop-asana-snap-in-internal/
 
 | File | Purpose |
 |---|---|
-| `code/src/asana/api-client/index.ts` | `AsanaClient` class — all Asana REST API calls (read + write: tasks, subtasks, users, tags, custom fields, stories, sections, projects, attachments, dependencies). Includes built-in HTTP retry logic (3 retries, exponential backoff 1s/2s/4s for network errors and 5xx). |
+| `code/src/asana/api-client/index.ts` | `AsanaClient` class — all Asana REST API calls (read + write: tasks, subtasks, users, tags, custom fields, stories, sections, projects, attachments, dependencies). Includes built-in HTTP retry logic (3 retries; exponential backoff 2s/4s/8s for network errors and 5xx; 429s are not retried). |
 | `code/src/asana/types.ts` | Asana type definitions — re-exports from generated API types plus local types (`AsanaAttachment`, `AsanaLink`, `ListResponse`, `PaginatedRequest`) |
 | `code/src/asana/data-normalization.ts` | Normalizer functions that convert Asana objects to DevRev `NormalizedItem` / `NormalizedAttachment` format |
 | `code/src/asana/data-denormalization.ts` | Denormalizer functions that convert DevRev data back to Asana API format (`denormalizeTask`, `denormalizeComment`, `denormalizeLink`) |
@@ -207,8 +206,8 @@ The SDK persists state automatically when events are emitted. On the next invoca
 - **Workspace**: `event.payload.connection_data.org_id`
 - **Project (sync unit)**: `event.payload.event_context.external_sync_unit_id`
 - **Pagination**: All list endpoints use offset-based pagination with page size 100
-- **Rate limiting (429)**: Not retried by the HTTP client. Instead, `handleExtractionError` in `data-helpers.ts` reads the `Retry-After` header (default 60s) and returns `{ delay }`. The worker then emits a `*_DELAY` event so AirSync can restart after the delay.
-- **Retries**: The HTTP client retries 3 times with exponential backoff (1s, 2s, 4s) for network errors and 5xx responses only. 4xx errors (including 429) are not retried by the client.
+- **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker emits a `*_DELAY` event so the platform reschedules. Metadata extraction emits `MetadataExtractionDelayed`; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
+- **Retries**: The HTTP client retries up to 3 times for network errors and 5xx responses, with exponential backoff (2s, 4s, 8s). 4xx errors, including 429, are not retried.
 
 ## Development Workflow
 
@@ -256,7 +255,8 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 - **Attachment URLs expire**: Asana `download_url` values expire in ~2 minutes. Attachments must be streamed during the attachments extraction phase, not stored for later.
 - **Comments are create-only**: The Asana API does not support updating or deleting comments (stories). Loading creates new comments but updates are no-op.
 - **Generated code**: `code/src/asana/api-client/generated/` is auto-generated from the Asana OpenAPI spec. Do not edit manually; regenerate with `npm run api-gen`.
-- **429 handling**: Rate limit responses are not retried by the HTTP client. They are handled at the worker level (extraction and loading) by emitting a `*_DELAY` event with the `Retry-After` value.
+- **429 handling**: Rate limit responses are never retried in-process. Metadata, data, attachment and loading phases emit a `*_DELAY` event via `handleExtractionError`/`handleLoadingError`. External-sync-unit extraction has no delay event (SDK limitation), so a 429 there fails the phase and the user retries later.
+- **Metadata timeout**: The metadata worker's `onTimeout` emits `MetadataExtractionProgress`. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
 - **State size**: Snap-in state must be smaller than 1 MB (~500,000 characters).
 - **Single response**: Each worker invocation must emit exactly one response event to AirSync.
 

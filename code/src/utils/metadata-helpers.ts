@@ -9,7 +9,17 @@ import type {
 import { AsanaClient } from '@asana/api-client';
 import { CustomFieldType, StageState } from '@asana/constants';
 import type { AsanaCustomField, AsanaSection } from '@asana/types';
+import { type ExtractListResponse, handleExtractionError } from '@utils/data-helpers';
 import { serializeError } from '@utils/serialize-error';
+
+function describeMetadataError(action: string, error: unknown): ExtractListResponse {
+  const { delay } = handleExtractionError(error);
+  if (delay) {
+    return { delay };
+  }
+
+  return { error: { message: `Error ${action}: ${serializeError(error)}` } };
+}
 
 function mapAsanaTypeToMetadataType(asanaType: string): FieldType {
   const typeMap: Record<string, FieldType> = {
@@ -178,15 +188,13 @@ async function fetchSections(asanaClient: AsanaClient): Promise<AsanaSection[]> 
 export async function enrichMetadataWithCustomFields(
   metadata: ExternalDomainMetadata,
   asanaClient: AsanaClient
-): Promise<string | void> {
+): Promise<ExtractListResponse | void> {
   let customFields: AsanaCustomField[];
 
   try {
     customFields = await fetchCustomFields(asanaClient);
   } catch (error) {
-    const errorMessage = `Error fetching custom fields from Asana: ${serializeError(error)}`;
-    console.error(errorMessage);
-    return errorMessage;
+    return describeMetadataError('fetching custom fields from Asana', error);
   }
 
   const validFields = customFields.filter((cf) => !!cf.name);
@@ -210,15 +218,13 @@ export async function enrichMetadataWithCustomFields(
 export async function enrichMetadataWithSections(
   metadata: ExternalDomainMetadata,
   asanaClient: AsanaClient
-): Promise<string | void> {
+): Promise<ExtractListResponse | void> {
   let sections: AsanaSection[];
 
   try {
     sections = await fetchSections(asanaClient);
   } catch (error) {
-    const errorMessage = `Error fetching sections from Asana: ${serializeError(error)}`;
-    console.error(errorMessage);
-    return errorMessage;
+    return describeMetadataError('fetching sections from Asana', error);
   }
 
   if (sections.length === 0) {

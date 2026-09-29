@@ -1,5 +1,6 @@
 import { NormalizedAttachment, NormalizedItem } from '@devrev/ts-adaas';
 
+import { buildExternalAttachmentLinks } from '@utils/attachment-helpers';
 import { CustomFieldValue, extractCustomFields, extractSectionFromMemberships, toTimestamp } from '@utils/field-extraction-helpers';
 import { parseAsanaRichText, RichTextContent } from '@utils/rich-text-helpers';
 
@@ -92,12 +93,28 @@ function getTaskBaseData(item: AsanaTask): TaskBaseData {
   };
 }
 
+/**
+ * Append external-attachment links (Google Drive, Dropbox, etc.) to the parsed description.
+ * These files have no downloadable blob, so they are surfaced as links in the body rather than
+ * dropped. Returns the original description when there are no external attachments.
+ */
+function withExternalAttachmentLinks(
+  description: RichTextContent[] | null,
+  item: AsanaTask
+): RichTextContent[] | null {
+  const links = buildExternalAttachmentLinks(item);
+  if (!links) {
+    return description;
+  }
+  return [...(description ?? []), `\n\n${links}`];
+}
+
 function buildTaskData(item: AsanaTask, base: TaskBaseData): TaskData {
   return {
     name: item?.name ?? null,
     assignee: item?.assignee?.gid ?? null,
     created_by: item?.created_by?.gid ?? null,
-    description: parseAsanaRichText(item?.html_notes),
+    description: withExternalAttachmentLinks(parseAsanaRichText(item?.html_notes), item),
     item_url_field: item?.permalink_url ?? null,
     due_date: base.dueDate,
     start_date: base.startDate,

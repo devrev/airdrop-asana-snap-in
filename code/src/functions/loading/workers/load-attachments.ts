@@ -7,6 +7,42 @@ import { serializeError } from '@utils/serialize-error';
 
 import type { LoaderState } from '../index';
 
+/**
+ * Re-associate a task-uploaded attachment with the comment it belongs to.
+ *
+ * Asana reparents a file onto a story when the story's `html_text` embeds it as
+ * `<img data-asana-gid="...">`; the story then lists it in its own `attachments`, which the next
+ * forward sync reads. Best-effort: the file is already on the task, so failing here costs correct
+ * parenting, not data.
+ */
+async function reparentAttachmentToComment(
+  asanaClient: AsanaClient,
+  commentGid: string,
+  attachmentGid: string,
+  fileName: string
+): Promise<void> {
+  try {
+    const story = await asanaClient.getStory(commentGid);
+    const existingHtml: string | undefined = story.data?.data?.html_text;
+
+    // Already embedded by an earlier partial run.
+    if (existingHtml?.includes(`data-asana-gid="${attachmentGid}"`)) {
+      return;
+    }
+
+    const inner = existingHtml?.match(/^\s*<body>([\s\S]*)<\/body>\s*$/i)?.[1] ?? '';
+    const html = `<body>${inner}<img data-asana-gid="${attachmentGid}"/></body>`;
+
+    await asanaClient.updateTaskComment(commentGid, { data: { html_text: html } });
+    console.log(`Re-parented attachment ${attachmentGid} ("${fileName}") onto comment ${commentGid}.`);
+  } catch (error) {
+    console.warn(
+      `Could not re-parent attachment ${attachmentGid} ("${fileName}") onto comment ${commentGid}; ` +
+        `it stays attached to the task: ${serializeError(error)}`
+    );
+  }
+}
+
 async function createAttachment({
   item,
   mappers,
@@ -21,9 +57,11 @@ async function createAttachment({
       ? await resolveExternalId(mappers, syncUnit, parentDevrevId)
       : null;
 
-    // Asana only accepts task GIDs as attachment parents.
-    // If parent is a comment, resolve to the parent task instead.
+    // Asana only accepts task GIDs as attachment parents, so a comment attachment must be
+    // uploaded to the owning task and then embedded back into the comment (see below).
+    let commentGid: string | null = null;
     if (parentGid && parentDevrevId?.includes(':comment/')) {
+      commentGid = parentGid;
       const taskDevrevId = parentDevrevId.replace(/:comment\/.*$/, '');
       parentGid = await resolveExternalId(mappers, syncUnit, taskDevrevId);
     }
@@ -39,6 +77,10 @@ async function createAttachment({
 
     const response = await asanaClient.createTaskAttachment(parentGid, fileBuffer, item.file_name);
     const attachmentGid = response.data?.data?.gid;
+
+    if (commentGid && attachmentGid) {
+      await reparentAttachmentToComment(asanaClient, commentGid, attachmentGid, item.file_name);
+    }
 
     return { id: attachmentGid };
   } catch (error) {

@@ -42,7 +42,6 @@ export const StageState = {
 
 /**
  * Maximum depth for subtask extraction.
- * 0 = project task, 1 = subtask, 2 = sub-subtask
  * DevRev platform limitation: Links only support 2 levels deep (parent->child->child).
  */
 export const MAX_SUBTASK_DEPTH = 2;

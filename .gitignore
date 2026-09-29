@@ -48,7 +48,8 @@ Thumbs.db
 # Generated/local data
 code/scripts/generate-mock-data/mock-data-manifest.json
 
-# Other
-.github
-!.github/CODEOWNERS
+.connector-dev/
+
+# Internal deploy config lives in the deployer repo
 marketplace.yaml
+.devrev/

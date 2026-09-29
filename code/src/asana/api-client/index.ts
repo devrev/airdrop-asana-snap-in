@@ -47,6 +47,8 @@ import {
 const ASANA_API_BASE_URL = 'https://app.asana.com/api/1.0';
 const ASANA_PAGE_LIMIT = 100;
 
+const HTTP_RETRIES = 3;
+
 const TASK_FIELDS = [
   'name',
   'resource_subtype',
@@ -111,8 +113,11 @@ const TASK_FIELDS = [
   'attachments.size',
   'attachments.download_url',
   'attachments.resource_type',
+  'attachments.resource_subtype',
   'attachments.created_at',
   'attachments.permanent_url',
+  'attachments.view_url',
+  'attachments.host',
 ].join(',');
 
 const USER_FIELDS = ['name', 'email'].join(',');
@@ -140,6 +145,9 @@ const STORIES_FIELDS = [
   'target.gid',
   'target.name',
   'target.resource_subtype',
+  'attachments',
+  'attachments.gid',
+  'attachments.name',
 ].join(',');
 const SECTIONS_FIELDS = ['name'].join(',');
 const PROJECT_FIELDS = ['privacy_setting'].join(',');
@@ -163,19 +171,22 @@ export class AsanaClient {
     });
 
     axiosRetry(axiosInstance, {
-      retries: 3,
+      retries: HTTP_RETRIES,
       retryDelay: (retryCount, error) => {
         const delay = 2 ** retryCount * 1000;
-        const delaySeconds = (delay / 1000).toFixed(1);
-        console.warn(`HTTP Retry: Attempt ${retryCount}/3 - Waiting ${delaySeconds}s - ${serializeError(error)}`);
+        console.warn(
+          `HTTP Retry: Attempt ${retryCount}/${HTTP_RETRIES} - Waiting ${(delay / 1000).toFixed(1)}s - ` +
+            `${serializeError(error)}`
+        );
         return delay;
       },
+      // 429s are not retried here: waiting on Retry-After could run the worker into the Lambda
+      // hard timeout, so callers emit a *_DELAYED event and let the platform reschedule instead.
       retryCondition: (error) => {
         if (!error.response) {
           return true;
         }
         const { status } = error.response;
-        // Retry on 5xx server errors only
         return status >= 500 && status < 600;
       },
     });
@@ -288,6 +299,13 @@ export class AsanaClient {
     });
   }
 
+  /** Fetch a single story (comment) by GID. */
+  async getStory(storyGid: string): Promise<AxiosResponse> {
+    return this.httpClient.get(`/stories/${storyGid}`, {
+      params: { opt_fields: STORIES_FIELDS },
+    });
+  }
+
   /** Fetch workspace memberships for the authenticated user. */
   async getWorkspaceMembershipsForMe(): Promise<AxiosResponse> {
     return this.httpClient.get('/users/me/workspace_memberships', {
@@ -336,6 +354,11 @@ export class AsanaClient {
   /** Post a comment (story) on a task. */
   async createTaskComment(taskGid: string, payload: CreateAsanaCommentRequest): Promise<AxiosResponse> {
     return this.httpClient.post(`/tasks/${taskGid}/stories`, payload);
+  }
+
+  /** Update an existing comment (story) by GID via PUT /stories/{story_gid}. */
+  async updateTaskComment(storyGid: string, payload: CreateAsanaCommentRequest): Promise<AxiosResponse> {
+    return this.httpClient.put(`/stories/${storyGid}`, payload);
   }
 
   /** Add dependency relationships to a task. */

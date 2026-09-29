@@ -242,8 +242,13 @@ describe('AsanaClient', () => {
       expect(result).toBe(true);
     });
 
-    it('should not retry on 429 rate limit', () => {
-      const result = capturedRetryConfig.retryCondition({ response: { status: 429 } });
+    it('should not retry on 429 rate limit even with a short Retry-After', () => {
+      const result = capturedRetryConfig.retryCondition({ response: { status: 429, headers: { 'retry-after': '5' } } });
+      expect(result).toBe(false);
+    });
+
+    it('should not retry on 429 rate limit without a Retry-After header', () => {
+      const result = capturedRetryConfig.retryCondition({ response: { status: 429, headers: {} } });
       expect(result).toBe(false);
     });
 
@@ -269,18 +274,18 @@ describe('AsanaClient', () => {
     });
 
     it('should return exponential delay based on retry count', () => {
-      const delay1 = capturedRetryConfig.retryDelay(1, 'error');
+      const delay1 = capturedRetryConfig.retryDelay(1, { response: undefined });
       expect(delay1).toBe(2000);
 
-      const delay2 = capturedRetryConfig.retryDelay(2, 'error');
+      const delay2 = capturedRetryConfig.retryDelay(2, { response: undefined });
       expect(delay2).toBe(4000);
 
-      const delay3 = capturedRetryConfig.retryDelay(3, 'error');
+      const delay3 = capturedRetryConfig.retryDelay(3, { response: undefined });
       expect(delay3).toBe(8000);
     });
 
     it('should log a warning with retry attempt details', () => {
-      capturedRetryConfig.retryDelay(1, 'connection refused');
+      capturedRetryConfig.retryDelay(1, { response: undefined, message: 'connection refused' });
 
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('HTTP Retry: Attempt 1/3')
@@ -314,6 +319,12 @@ describe('AsanaClient', () => {
       const client = createClient();
       await client.createTaskComment('t1', { data: { html_text: 'Hi' } } as any);
       expect(mockPost).toHaveBeenCalledWith('/tasks/t1/stories', { data: { html_text: 'Hi' } });
+    });
+
+    it('updateTaskComment should PUT to /stories/{storyGid}', async () => {
+      const client = createClient();
+      await client.updateTaskComment('story-1', { data: { html_text: 'Edited' } } as any);
+      expect(mockPut).toHaveBeenCalledWith('/stories/story-1', { data: { html_text: 'Edited' } });
     });
 
     it('addTaskDependencies should POST to /tasks/{taskGid}/addDependencies', async () => {
