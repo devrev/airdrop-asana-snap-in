@@ -19,6 +19,9 @@ service_account:
       - scope: sync_snap_in:all
         optional: false
         reason: "Allow all access to sync snap ins"
+      - scope: sync_history:read
+        optional: true
+        reason: "Allow read access to sync history"
 
 functions:
   - name: extraction
