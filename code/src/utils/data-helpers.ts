@@ -69,6 +69,29 @@ export function handleExtractionError(error: unknown): ExtractListResponse {
   return { error: { message: errorMessage } };
 }
 
+/** Asana offset tokens expire after a while, so a token saved in state can be dead by the next invocation. */
+export function isExpiredPaginationTokenError(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response?.status !== 400) return false;
+  const errors: { message?: string }[] = error.response.data?.errors ?? [];
+  return errors.some((e) => /pagination token has expired/i.test(e.message ?? ''));
+}
+
+/** Fetch a page; if the saved offset expired, call onExpired to reset progress and fetch the first page instead. */
+async function fetchPageRecoveringExpiredOffset<T>(
+  offset: string,
+  fetchPage: (offset: string) => Promise<T>,
+  onExpired: () => void
+): Promise<T> {
+  try {
+    return await fetchPage(offset);
+  } catch (error) {
+    if (!offset || !isExpiredPaginationTokenError(error)) throw error;
+    console.warn('Saved pagination offset has expired. Restarting listing from the first page.');
+    onExpired();
+    return fetchPage('');
+  }
+}
+
 /** Extract all workspace users from Asana with pagination and timeout support. */
 export async function extractUsers(asanaClient: AsanaClient, adapter: WorkerAdapter<ExtractorState>): Promise<void> {
   let offset = adapter.state.users.offset;
@@ -79,9 +102,11 @@ export async function extractUsers(asanaClient: AsanaClient, adapter: WorkerAdap
       return;
     }
 
-    const response = await asanaClient.getUsersForWorkspace({
-      ...(offset ? { offset } : {}),
-    });
+    const response = await fetchPageRecoveringExpiredOffset(
+      offset,
+      (o) => asanaClient.getUsersForWorkspace({ ...(o ? { offset: o } : {}) }),
+      () => (adapter.state.users.offset = '')
+    );
 
     const users = response.data?.data || [];
     if (users.length > 0) {
@@ -104,9 +129,11 @@ export async function extractTags(asanaClient: AsanaClient, adapter: WorkerAdapt
       return;
     }
 
-    const response = await asanaClient.getTagsForWorkspace({
-      ...(adapter.state.tags.offset && { offset: adapter.state.tags.offset }),
-    });
+    const response = await fetchPageRecoveringExpiredOffset(
+      adapter.state.tags.offset,
+      (o) => asanaClient.getTagsForWorkspace({ ...(o && { offset: o }) }),
+      () => (adapter.state.tags.offset = '')
+    );
     const tags = response.data?.data || [];
     await adapter.getRepo(ItemType.TAGS)?.push(tags);
     adapter.state.tags.total += tags.length;
@@ -130,9 +157,11 @@ export async function extractGroups(
       return;
     }
 
-    const response = await asanaClient.getTeamsForWorkspace({
-      ...(offset ? { offset } : {}),
-    });
+    const response = await fetchPageRecoveringExpiredOffset(
+      offset,
+      (o) => asanaClient.getTeamsForWorkspace({ ...(o ? { offset: o } : {}) }),
+      () => (adapter.state.groups.offset = '')
+    );
 
     const teams = response.data?.data || [];
     for (const team of teams) {
@@ -469,10 +498,14 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: WorkerAdap
     const beforeAttachments = adapter.state.attachments.total;
     const beforeComments = adapter.state.comments.total;
 
-    const response = await asanaClient.getTasks({
-      ...(adapter.state.tasks.offset && { offset: adapter.state.tasks.offset }),
-      ...(extractFrom && { modified_since: extractFrom }),
-    });
+    const response = await fetchPageRecoveringExpiredOffset(
+      adapter.state.tasks.offset,
+      (o) => asanaClient.getTasks({ ...(o && { offset: o }), ...(extractFrom && { modified_since: extractFrom }) }),
+      () => {
+        adapter.state.tasks.offset = '';
+        adapter.state.tasks.lastExtractedTaskIndex = -1;
+      }
+    );
 
     const projectTasks: AsanaTask[] = (response.data?.data || []).map((task) => ({
       ...task,

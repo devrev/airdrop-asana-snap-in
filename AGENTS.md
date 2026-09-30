@@ -151,7 +151,7 @@ airdrop-asana-snap-in/
 
 | File | Purpose |
 |---|---|
-| `code/src/asana/api-client/index.ts` | `AsanaClient` class — all Asana REST API calls (read + write: tasks, subtasks, users, tags, custom fields, stories, sections, projects, attachments, dependencies). Includes built-in HTTP retry logic (3 retries; exponential backoff 2s/4s/8s for network errors and 5xx; 429s are not retried). |
+| `code/src/asana/api-client/index.ts` | `AsanaClient` class — all Asana REST API calls (read + write: tasks, subtasks, users, tags, custom fields, stories, sections, projects, attachments incl. `getAttachment` for fresh download URLs, dependencies). Includes built-in HTTP retry logic (3 retries; exponential backoff 2s/4s/8s for network errors and 5xx; 429s are not retried). |
 | `code/src/asana/types.ts` | Asana type definitions — re-exports from generated API types plus local types (`AsanaAttachment`, `AsanaLink`, `ListResponse`, `PaginatedRequest`) |
 | `code/src/asana/data-normalization.ts` | Normalizer functions that convert Asana objects to DevRev `NormalizedItem` / `NormalizedAttachment` format |
 | `code/src/asana/data-denormalization.ts` | Denormalizer functions that convert DevRev data back to Asana API format (`denormalizeTask`, `denormalizeComment`, `denormalizeLink`) |
@@ -162,7 +162,7 @@ airdrop-asana-snap-in/
 | `code/src/functions/loading/index.ts` | Loading orchestrator — defines `LoaderState`, calls `spawn()` |
 | `code/src/functions/loading/workers/load-data.ts` | Data loading worker — creates/updates tasks, subtasks, comments, and links in Asana via `adapter.loadItemTypes()` |
 | `code/src/functions/loading/workers/load-attachments.ts` | Attachment loading worker — downloads from DevRev and uploads to Asana via multipart form |
-| `code/src/utils/data-helpers.ts` | Core extraction logic: `extractUsers`, `extractTags`, `extractGroups`, `extractTasks`, subtask/comment/link extraction, pagination, `prepareStateForExtraction` |
+| `code/src/utils/data-helpers.ts` | Core extraction logic: `extractUsers`, `extractTags`, `extractGroups`, `extractTasks`, subtask/comment/link extraction, pagination (incl. expired-offset recovery via `isExpiredPaginationTokenError`), `prepareStateForExtraction` |
 | `code/src/utils/field-extraction-helpers.ts` | Pure data transformation: `toTimestamp`, `toDateOnly`, `extractCustomFields`, `extractSectionFromMemberships` |
 | `code/src/utils/attachment-helpers.ts` | Attachment text parsing: `extractInlineAttachmentGids`, `extractAttachmentGidFromCommentText`, `stripAssetUrlsFromText`, `extractAttachmentsFromTask` |
 | `code/src/utils/permissions-helpers.ts` | `extractPermissions` — fetches project memberships and produces access rule records per access level |
@@ -252,7 +252,8 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 - **Lambda timeout**: Max 15 minutes. The SDK sends a soft timeout at ~10-13 minutes. Workers must handle `onTimeout` gracefully by saving state and emitting a progress/error event.
 - **Subtask depth**: Limited to 2 levels (`MAX_SUBTASK_DEPTH`) due to DevRev link depth constraints. Tasks → subtasks → sub-subtasks.
-- **Attachment URLs expire**: Asana `download_url` values expire in ~2 minutes. Attachments must be streamed during the attachments extraction phase, not stored for later.
+- **Attachment URLs expire**: Asana `download_url` values expire in ~2 minutes. The attachments worker fetches a fresh URL via `getAttachment(gid)` right before each download; the URL stored at data extraction time is never used. Batch size is 10 to avoid exhausting Lambda sockets/DNS.
+- **Pagination tokens expire**: A saved `offset` can be rejected with 400 `pagination token has expired` on a later invocation. `fetchPageRecoveringExpiredOffset` in `data-helpers.ts` resets the listing to the first page instead of failing.
 - **Comments are create-only**: The Asana API does not support updating or deleting comments (stories). Loading creates new comments but updates are no-op.
 - **Generated code**: `code/src/asana/api-client/generated/` is auto-generated from the Asana OpenAPI spec. Do not edit manually; regenerate with `npm run api-gen`.
 - **429 handling**: Rate limit responses are never retried in-process. Metadata, data, attachment and loading phases emit a `*_DELAY` event via `handleExtractionError`/`handleLoadingError`. External-sync-unit extraction has no delay event (SDK limitation), so a 429 there fails the phase and the user retries later.

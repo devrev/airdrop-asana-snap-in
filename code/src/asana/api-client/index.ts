@@ -12,6 +12,7 @@ import {
   CreateAsanaCommentRequest,
   CreateAsanaTaskRequest,
   CreateAsanaTaskResponse,
+  GetAsanaAttachmentResponse,
   GetAsanaCustomFieldSettingsRequest,
   GetAsanaCustomFieldSettingsResponse,
   GetAsanaMembershipsRequest,
@@ -246,6 +247,13 @@ export class AsanaClient {
   async getUser(userGid: string): Promise<AxiosResponse<GetAsanaUserResponse>> {
     return this.httpClient.get(`/users/${userGid}`, {
       params: { opt_fields: USER_FIELDS },
+    });
+  }
+
+  /** Fetch a single attachment by GID. Asana issues a new short-lived download_url on every call. */
+  async getAttachment(attachmentGid: string): Promise<AxiosResponse<GetAsanaAttachmentResponse>> {
+    return this.httpClient.get(`/attachments/${attachmentGid}`, {
+      params: { opt_fields: 'download_url' },
     });
   }
 

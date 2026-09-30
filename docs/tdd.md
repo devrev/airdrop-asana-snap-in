@@ -212,6 +212,7 @@ Base URL: `https://app.asana.com/api/1.0`
 | Project Memberships | GET | `/memberships?parent={projectId}`       | List project memberships for access rules                           |
 | Project        | GET    | `/projects/{projectId}`                   | Get project privacy setting for access rules                        |
 | Workspace Membership | GET | `/users/me/workspace_memberships`    | Check if authorizing user is workspace admin         |
+| Attachment     | GET    | `/attachments/{attachmentGid}`            | Get a fresh `download_url` right before streaming    |
 
 All extraction endpoints use offset-based pagination with `limit=100` and `opt_fields` to request specific fields.
 
@@ -256,6 +257,7 @@ Instead, `handleExtractionError`/`handleLoadingError` turn a 429 into `{ delay }
 | Style     | Offset-based                                                              |
 | Page size | 100 items per page (tasks, users, tags, custom fields, stories, sections) |
 | Mechanism | Response includes `next_page.offset`; pass as `offset` query parameter    |
+| Expiry    | Offset tokens expire. A saved offset that Asana rejects with 400 `pagination token has expired` resets that listing (tasks, users, tags, groups) to the first page instead of failing the phase. Already-pushed items are re-pushed; records are keyed by ID. |
 
 ### 2.4.3 Response Format
 
@@ -328,7 +330,7 @@ Attachments are extracted from task properties during data extraction. Each task
 
 **Inline attachments:** The connector identifies inline images by scanning `html_notes` (task descriptions) and `html_text` (comments) for `<img>` tags with `data-asana-type="attachment"`. These are marked with `inline: true`. Comment-attached images are mapped to their parent comment GID rather than the task GID.
 
-**Forward (extraction):** Attachments are streamed to DevRev using the `download_url` from Asana. Batch size is 50 attachments per batch. During time-scoped or incremental sync, attachments are filtered by `created_at` against both `extract_from` (lower bound) and `extract_to` (upper bound).
+**Forward (extraction):** The `download_url` stored during data extraction is not used for downloading, because it expires within minutes and the attachments phase can run much later. Before each download, the `stream` function calls `GET /attachments/{gid}` (`getAttachment`) for a fresh URL. Batch size is 10 attachments per batch: at 50, parallel DNS lookups and sockets exhausted the Lambda (`EMFILE`, `getaddrinfo EBUSY`). During time-scoped or incremental sync, attachments are filtered by `created_at` against both `extract_from` (lower bound) and `extract_to` (upper bound).
 
 **Reverse (loading):** Attachments are downloaded from DevRev artifact URLs and uploaded to Asana as file attachments via `POST /attachments` (multipart form upload) using `createTaskAttachment`. The parent task is resolved via the mapper service.
 
