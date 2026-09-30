@@ -13,6 +13,7 @@ import {
   fetchCommentsForTask,
   fetchTeamMemberUserGids,
   handleExtractionError,
+  isExpiredPaginationTokenError,
   prepareStateForExtraction,
   TaskExtractionBuffer,
 } from './data-helpers';
@@ -1940,5 +1941,171 @@ describe('extractTasks', () => {
     await extractTasks(client, adapter);
 
     expect(adapter.state.tasks.lastExtractedTaskIndex).toBe(-1);
+  });
+});
+
+describe('expired pagination token recovery', () => {
+  const mockPush = jest.fn();
+
+  function expiredTokenError() {
+    return {
+      isAxiosError: true,
+      response: {
+        status: 400,
+        data: { errors: [{ message: 'Offset: Your pagination token has expired.' }] },
+      },
+    };
+  }
+
+  function page(items: any[], nextOffset?: string) {
+    return { data: { data: items, next_page: nextOffset ? { offset: nextOffset } : null } };
+  }
+
+  // Rejects any request that still carries the stale offset, like Asana does.
+  function listMock(staleOffset: string, pages: Record<string, ReturnType<typeof page>>) {
+    return jest.fn().mockImplementation((params?: { offset?: string }) => {
+      const offset = params?.offset ?? '';
+      if (offset === staleOffset) return Promise.reject(expiredTokenError());
+      return Promise.resolve(pages[offset]);
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'warn').mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('isExpiredPaginationTokenError', () => {
+    it('should detect the Asana expired pagination token error', () => {
+      expect(isExpiredPaginationTokenError(expiredTokenError())).toBe(true);
+    });
+
+    it('should not match other 400 errors', () => {
+      const error = {
+        isAxiosError: true,
+        response: { status: 400, data: { errors: [{ message: 'project: Not a recognized ID' }] } },
+      };
+      expect(isExpiredPaginationTokenError(error)).toBe(false);
+    });
+
+    it('should not match non-axios errors', () => {
+      expect(isExpiredPaginationTokenError(new Error('Your pagination token has expired'))).toBe(false);
+    });
+  });
+
+  describe('extractTasks', () => {
+    function createAdapter(offset: string, lastExtractedTaskIndex: number) {
+      return {
+        isTimeout: false,
+        shouldExtract: jest.fn().mockReturnValue(true),
+        event: { payload: { event_context: {} } },
+        state: {
+          tasks: { completed: false, offset, total: 139, lastExtractedTaskIndex },
+          subtasks: { completed: false, total: 0 },
+          comments: { completed: false, total: 0 },
+          attachments: { completed: false, total: 0 },
+          links: { completed: false, total: 0 },
+        },
+        getRepo: jest.fn().mockReturnValue({ push: mockPush }),
+      } as any;
+    }
+
+    function createClient(getTasks: jest.Mock) {
+      return {
+        projectId: 'proj1',
+        getTasks,
+        getStoriesForTask: jest.fn().mockResolvedValue(page([])),
+        getSubtasksForTask: jest.fn().mockResolvedValue(page([])),
+      } as any;
+    }
+
+    it('should restart from the first page when the saved offset has expired', async () => {
+      const getTasks = listMock('stale', {
+        '': page([{ gid: 't1' }, { gid: 't2' }], 'p2'),
+        p2: page([{ gid: 't3' }]),
+      });
+      const adapter = createAdapter('stale', 38);
+
+      await extractTasks(createClient(getTasks), adapter);
+
+      expect(getTasks).toHaveBeenCalledTimes(3);
+      expect(getTasks.mock.calls[1][0]).not.toHaveProperty('offset');
+      const pushedGids = mockPush.mock.calls.flatMap(([items]) => items.map((t: any) => t.gid));
+      expect(pushedGids).toEqual(['t1', 't2', 't3']);
+      expect(adapter.state.tasks.offset).toBe('');
+      expect(adapter.state.tasks.lastExtractedTaskIndex).toBe(-1);
+    });
+
+    it('should rethrow other errors and keep the saved offset', async () => {
+      const error = { isAxiosError: true, response: { status: 500, data: {} } };
+      const getTasks = jest.fn().mockRejectedValue(error);
+      const adapter = createAdapter('stale', 38);
+
+      await expect(extractTasks(createClient(getTasks), adapter)).rejects.toBe(error);
+      expect(adapter.state.tasks.offset).toBe('stale');
+      expect(adapter.state.tasks.lastExtractedTaskIndex).toBe(38);
+    });
+
+    it('should rethrow if the first page itself fails with an expired token', async () => {
+      const getTasks = jest.fn().mockRejectedValue(expiredTokenError());
+      const adapter = createAdapter('', -1);
+
+      await expect(extractTasks(createClient(getTasks), adapter)).rejects.toEqual(expiredTokenError());
+      expect(getTasks).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('extractUsers should restart from the first page when the saved offset has expired', async () => {
+    const getUsersForWorkspace = listMock('stale', { '': page([{ gid: 'u1' }]) });
+    const adapter = {
+      isTimeout: false,
+      state: { users: { completed: false, offset: 'stale', total: 0 } },
+      getRepo: jest.fn().mockReturnValue({ push: mockPush }),
+    } as any;
+
+    await extractUsers({ getUsersForWorkspace } as any, adapter);
+
+    expect(getUsersForWorkspace).toHaveBeenCalledTimes(2);
+    expect(mockPush).toHaveBeenCalledWith([{ gid: 'u1' }]);
+    expect(adapter.state.users.offset).toBe('');
+  });
+
+  it('extractTags should restart from the first page when the saved offset has expired', async () => {
+    const getTagsForWorkspace = listMock('stale', { '': page([{ gid: 'tag1' }]) });
+    const adapter = {
+      isTimeout: false,
+      state: { tags: { completed: false, offset: 'stale', total: 0 } },
+      getRepo: jest.fn().mockReturnValue({ push: mockPush }),
+    } as any;
+
+    await extractTags({ getTagsForWorkspace } as any, adapter);
+
+    expect(getTagsForWorkspace).toHaveBeenCalledTimes(2);
+    expect(mockPush).toHaveBeenCalledWith([{ gid: 'tag1' }]);
+    expect(adapter.state.tags.offset).toBe('');
+  });
+
+  it('extractGroups should restart from the first page when the saved offset has expired', async () => {
+    const getTeamsForWorkspace = listMock('stale', { '': page([{ gid: 'team1', name: 'Team 1' }]) });
+    const adapter = {
+      isTimeout: false,
+      shouldExtract: jest.fn().mockReturnValue(false),
+      state: {
+        groups: { completed: false, offset: 'stale', total: 0 },
+        group_memberships: { completed: false, total: 0 },
+      },
+      getRepo: jest.fn().mockReturnValue({ push: mockPush }),
+    } as any;
+
+    await extractGroups({ getTeamsForWorkspace } as any, adapter);
+
+    expect(getTeamsForWorkspace).toHaveBeenCalledTimes(2);
+    expect(adapter.state.groups.total).toBe(1);
+    expect(adapter.state.groups.offset).toBe('');
   });
 });

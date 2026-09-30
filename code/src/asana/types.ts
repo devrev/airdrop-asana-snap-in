@@ -84,6 +84,7 @@ export type GetAsanaProjectTaskCountResponse = GetTaskCountsForProject200Respons
 export type AsanaMembership = MembershipCompact;
 export type GetAsanaMembershipsResponse = ListResponse<AsanaMembership>;
 export type GetAsanaUserResponse = { data: AsanaUser };
+export type GetAsanaAttachmentResponse = { data: AsanaAttachment };
 export type GetAsanaTagsResponse = ListResponse<AsanaTag>;
 export type AsanaCustomFieldSetting = CustomFieldSettingResponse;
 export type GetAsanaCustomFieldSettingsResponse = ListResponse<AsanaCustomFieldSetting>;

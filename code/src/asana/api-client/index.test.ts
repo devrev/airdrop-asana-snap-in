@@ -198,6 +198,18 @@ describe('AsanaClient', () => {
     });
   });
 
+  describe('getAttachment', () => {
+    it('should call /attachments/{attachmentGid} requesting download_url', async () => {
+      const client = createClient();
+
+      await client.getAttachment('att-123');
+
+      expect(mockGet).toHaveBeenCalledWith('/attachments/att-123', {
+        params: { opt_fields: 'download_url' },
+      });
+    });
+  });
+
   describe('getSectionsForProject', () => {
     it('should call correct URL with projectId', async () => {
       const client = createClient();
