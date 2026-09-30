@@ -40,6 +40,7 @@ import {
 } from '@devrev/typescript-sdk/dist/snap-ins';
 
 const app: Express = express();
+app.disable('x-powered-by');
 app.use(bodyParser.json(), bodyParser.urlencoded({ extended: false }));
 
 export const startServer = (port: number) => {
@@ -155,7 +156,7 @@ async function handleEvent(events: any[], isAsync: boolean, resp: Response) {
   }
 
   if (!isAsync) {
-    resp.status(200).send(results[0]);
+    resp.status(200).json(results[0]);
   }
 }
 
