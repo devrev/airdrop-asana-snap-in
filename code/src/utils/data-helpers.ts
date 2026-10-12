@@ -1,4 +1,5 @@
-import { axios, ErrorRecord, EventType, SyncMapperRecordTargetType, SyncMode, WorkerAdapter } from '@devrev/ts-adaas';
+import { ErrorRecord, EventType, ExtractionAdapter, SyncMapperRecordTargetType, SyncMode } from '@devrev/airsync-sdk';
+import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType, LinkType, MAX_SUBTASK_DEPTH, StoryType } from '@asana/constants';
@@ -31,7 +32,7 @@ export interface TaskExtractionBuffer {
 }
 
 /** Initialize extraction state based on sync mode (initial vs incremental). */
-export function prepareStateForExtraction(adapter: WorkerAdapter<ExtractorState>): void {
+export function prepareStateForExtraction(adapter: ExtractionAdapter<ExtractorState>): void {
   if (adapter.event.payload.event_type !== EventType.StartExtractingData) {
     return;
   }
@@ -93,7 +94,7 @@ async function fetchPageRecoveringExpiredOffset<T>(
 }
 
 /** Extract all workspace users from Asana with pagination and timeout support. */
-export async function extractUsers(asanaClient: AsanaClient, adapter: WorkerAdapter<ExtractorState>): Promise<void> {
+export async function extractUsers(asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>): Promise<void> {
   let offset = adapter.state.users.offset;
 
   do {
@@ -122,7 +123,7 @@ export async function extractUsers(asanaClient: AsanaClient, adapter: WorkerAdap
 }
 
 /** Extract all workspace tags from Asana with pagination and timeout support. */
-export async function extractTags(asanaClient: AsanaClient, adapter: WorkerAdapter<ExtractorState>): Promise<void> {
+export async function extractTags(asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>): Promise<void> {
   do {
     if (adapter.isTimeout) {
       console.log('Timeout detected, stopping tags extraction.');
@@ -147,7 +148,7 @@ export async function extractTags(asanaClient: AsanaClient, adapter: WorkerAdapt
 /** Extract all workspace teams as DevRev groups, and their memberships. */
 export async function extractGroups(
   asanaClient: AsanaClient,
-  adapter: WorkerAdapter<ExtractorState>
+  adapter: ExtractionAdapter<ExtractorState>
 ): Promise<void> {
   let offset = adapter.state.groups.offset;
 
@@ -230,7 +231,7 @@ export async function fetchTeamMemberUserGids(teamGid: string, asanaClient: Asan
  */
 export async function filterAlreadyMappedAttachments(
   attachments: AsanaAttachment[],
-  adapter: WorkerAdapter<ExtractorState>
+  adapter: ExtractionAdapter<ExtractorState>
 ): Promise<AsanaAttachment[]> {
   const syncUnit = adapter.event.payload.event_context.sync_unit;
   const kept: AsanaAttachment[] = [];
@@ -248,7 +249,7 @@ export async function filterAlreadyMappedAttachments(
         target_type: SyncMapperRecordTargetType.ARTIFACT,
       });
 
-      if (response.data?.sync_mapper_record) {
+      if (response?.sync_mapper_record) {
         console.log(
           `Attachment extraction: skipping ${attachment.gid} ("${attachment.name}") — ` +
             `already mapped to a DevRev artifact.`
@@ -258,14 +259,10 @@ export async function filterAlreadyMappedAttachments(
 
       kept.push(attachment);
     } catch (error) {
-      // 404 means no mapping yet, i.e. a new attachment. Any other failure is only logged, since a
-      // failed lookup must not silently drop the file.
-      if (!(axios.isAxiosError(error) && error.response?.status === 404)) {
-        console.warn(
-          `Attachment extraction: could not check mapper record for ${attachment.gid}, ` +
-            `extracting it anyway: ${serializeError(error)}`
-        );
-      }
+      console.warn(
+        `Attachment extraction: could not check mapper record for ${attachment.gid}, ` +
+          `extracting it anyway: ${serializeError(error)}`
+      );
       kept.push(attachment);
     }
   }
@@ -324,7 +321,7 @@ export async function extractTaskWithSubtasks(
   asanaClient: AsanaClient,
   projectId: string,
   buffer: TaskExtractionBuffer,
-  adapter: WorkerAdapter<ExtractorState>,
+  adapter: ExtractionAdapter<ExtractorState>,
   depth: number = 0,
   extractFrom?: string,
   extractTo?: string
@@ -381,7 +378,7 @@ export async function extractTaskWithSubtasks(
         return true;
       });
 
-      // Incremental only: an initial sync has no mappings, so every lookup would 404 for nothing.
+      // Incremental only: an initial sync has no mappings, so every lookup would be missing.
       const newAttachments = extractFrom
         ? await filterAlreadyMappedAttachments(filteredAttachments, adapter)
         : filteredAttachments;
@@ -483,7 +480,7 @@ export async function extractTaskWithSubtasks(
 }
 
 /** Extract all project tasks and their subtrees (subtasks, comments, attachments, links). */
-export async function extractTasks(asanaClient: AsanaClient, adapter: WorkerAdapter<ExtractorState>): Promise<void> {
+export async function extractTasks(asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>): Promise<void> {
   const { extract_from: extractFrom, extract_to: extractTo } = adapter.event.payload.event_context;
 
   do {

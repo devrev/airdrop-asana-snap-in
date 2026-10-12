@@ -1,4 +1,4 @@
-import type { ExternalSystemItemLoadingResponse, MappersGetByTargetIdParams } from '@devrev/ts-adaas';
+import type { ExternalSystemItemLoadingResponse, Mappers } from '@devrev/airsync-sdk';
 import axios from 'axios';
 
 import { serializeError } from '@utils/serialize-error';
@@ -40,25 +40,29 @@ export async function resolveRef(ref: unknown, resolveId: IdResolver): Promise<s
 }
 
 /** Handle loading errors, returning a delay for 429s or an error message otherwise. */
-export function handleLoadingError(error: unknown): ExternalSystemItemLoadingResponse {
+export function handleLoadingError(error: unknown): Extract<ExternalSystemItemLoadingResponse, { status: 'delay' | 'error' }> {
   if (axios.isAxiosError(error) && error.response?.status === 429) {
     // Fall back to 60s if Retry-After header is missing or non-numeric
     const retryAfter = Number(error.response.headers['retry-after']) || 60;
-    return { delay: retryAfter };
+    return { status: 'delay', delaySeconds: retryAfter };
   }
 
-  return { error: `Error during loading: ${serializeError(error)}` };
+  return { status: 'error', error: { message: `Error during loading: ${serializeError(error)}` } };
 }
 
 /** Look up the external (Asana) ID for a given DevRev ID via the sync mapper. */
 export async function resolveExternalId(
-  mappers: { getByTargetId(params: MappersGetByTargetIdParams): Promise<{ data?: { sync_mapper_record?: { external_ids?: string[] } } }> },
+  mappers: Pick<Mappers, 'getByTargetId'>,
   syncUnit: string,
   devrevId: string
 ): Promise<string | null> {
   try {
     const response = await mappers.getByTargetId({ sync_unit: syncUnit, target: devrevId });
-    const externalIds = response.data?.sync_mapper_record?.external_ids;
+    if (response === null) {
+      console.warn(`Failed to resolve external ID for devrevId=${devrevId}: no mapper record found`);
+      return null;
+    }
+    const externalIds = response.sync_mapper_record.external_ids;
     return externalIds?.[0] ?? null;
   } catch (error) {
     console.warn(`Failed to resolve external ID for devrevId=${devrevId}: ${serializeError(error)}`);

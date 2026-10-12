@@ -1,21 +1,19 @@
-import { ExtractorEventType, processTask } from '@devrev/ts-adaas';
+import { processExtractionTask } from '@devrev/airsync-sdk';
 import { AxiosError, type AxiosResponse } from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
 import { buildExternalSyncUnits, checkUserWorkspaceRole, fetchAllProjects } from '@utils/external-sync-units-helpers';
 import { serializeError } from '@utils/serialize-error';
 
-jest.mock('@devrev/ts-adaas', () => ({
-  processTask: jest.fn(),
-  ExtractorEventType: jest.requireActual('@devrev/ts-adaas').ExtractorEventType,
-  AirSyncDefaultItemTypes: jest.requireActual('@devrev/ts-adaas').AirSyncDefaultItemTypes,
-  axios: jest.requireActual('@devrev/ts-adaas').axios,
+jest.mock('@devrev/airsync-sdk', () => ({
+  processExtractionTask: jest.fn(),
+  AirSyncDefaultItemTypes: jest.requireActual('@devrev/airsync-sdk').AirSyncDefaultItemTypes,
 }));
 jest.mock('@asana/api-client');
 jest.mock('@utils/external-sync-units-helpers');
 jest.mock('@utils/serialize-error');
 
-const mockProcessTask = processTask as jest.Mock;
+const mockProcessTask = processExtractionTask as jest.Mock;
 const mockCheckUserWorkspaceRole = checkUserWorkspaceRole as jest.Mock;
 const mockFetchAllProjects = fetchAllProjects as jest.Mock;
 const mockBuildExternalSyncUnits = buildExternalSyncUnits as jest.Mock;
@@ -25,10 +23,10 @@ const mockSerializeError = serializeError as jest.Mock;
 require('./external-sync-units-extraction');
 
 const captured = mockProcessTask.mock.calls[0][0];
-const taskFn: (params: { adapter: any }) => Promise<void> = captured.task;
-const onTimeoutFn: (params: { adapter: any }) => Promise<void> = captured.onTimeout;
+const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 
 function createMockAdapter() {
+  const mockPush = jest.fn();
   return {
     event: {
       payload: {
@@ -36,9 +34,9 @@ function createMockAdapter() {
         event_context: { external_sync_unit_id: 'project-456' },
       },
     },
-    emit: jest.fn(),
     initializeRepos: jest.fn(),
-    getRepo: jest.fn().mockReturnValue({ push: jest.fn() }),
+    getRepo: jest.fn().mockReturnValue({ push: mockPush }),
+    _mockPush: mockPush,
   } as any;
 }
 
@@ -56,21 +54,22 @@ describe('external-sync-units-extraction worker', () => {
   });
 
   describe('task', () => {
-    it('should fetch projects, build ESUs, and emit ExternalSyncUnitExtractionDone', async () => {
+    it('should fetch projects, build ESUs, and return success', async () => {
       const mockProjects = [{ gid: '1', name: 'Project 1' }];
       const mockESUs = [{ id: '1', name: 'Project 1', item_count: 10 }];
       mockFetchAllProjects.mockResolvedValue(mockProjects);
       mockBuildExternalSyncUnits.mockResolvedValue(mockESUs);
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
       expect(AsanaClient).toHaveBeenCalledWith(adapter.event);
       expect(mockCheckUserWorkspaceRole).toHaveBeenCalled();
       expect(mockFetchAllProjects).toHaveBeenCalled();
       expect(mockBuildExternalSyncUnits).toHaveBeenCalledWith(mockProjects, expect.anything());
-      expect(adapter.getRepo).toHaveBeenCalledWith(expect.anything());
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.ExternalSyncUnitExtractionDone);
+      expect(adapter.getRepo).toHaveBeenCalledWith('external_sync_units');
+      expect(adapter._mockPush).toHaveBeenCalledWith(mockESUs);
+      expect(taskResult).toEqual({ status: 'success' });
     });
 
     it('should call checkUserWorkspaceRole before fetching projects', async () => {
@@ -89,22 +88,20 @@ describe('external-sync-units-extraction worker', () => {
       expect(callOrder).toEqual(['checkRole', 'fetchProjects']);
     });
 
-    it('should emit ExternalSyncUnitExtractionError when fetchAllProjects throws', async () => {
+    it('should return error when fetchAllProjects throws', async () => {
       const error = new Error('Network failure');
       mockFetchAllProjects.mockRejectedValue(error);
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.ExternalSyncUnitExtractionError, {
-        error: {
+      expect(taskResult).toEqual({ status: 'error', error: {
           message: expect.stringContaining('Error paginating projects list from Asana'),
-        },
-      });
+        }, });
       expect(mockBuildExternalSyncUnits).not.toHaveBeenCalled();
     });
 
-    it('should emit ExternalSyncUnitExtractionError with a retry hint when Asana rate limits', async () => {
+    it('should return error with a retry hint when Asana rate limits', async () => {
       mockFetchAllProjects.mockRejectedValue(
         new AxiosError('Too Many Requests', '429', undefined, undefined, {
           status: 429,
@@ -113,40 +110,27 @@ describe('external-sync-units-extraction worker', () => {
       );
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledTimes(1);
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.ExternalSyncUnitExtractionError, {
-        error: {
+      expect(taskResult).toEqual({ status: 'error', error: {
           message: 'Rate limited by Asana (HTTP 429) while listing projects. Retry in 90 seconds.',
-        },
-      });
+        }, });
       expect(mockBuildExternalSyncUnits).not.toHaveBeenCalled();
     });
 
-    it('should not emit done when fetchAllProjects throws', async () => {
+    it('should not return success when fetchAllProjects throws', async () => {
       mockFetchAllProjects.mockRejectedValue(new Error('fail'));
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).not.toHaveBeenCalledWith(
-        ExtractorEventType.ExternalSyncUnitExtractionDone,
-        expect.anything()
-      );
+      expect(taskResult.status).not.toBe('success');
     });
   });
 
   describe('onTimeout', () => {
-    it('should emit ExternalSyncUnitExtractionError with timeout message', async () => {
-      const adapter = createMockAdapter();
-      await onTimeoutFn({ adapter });
-
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.ExternalSyncUnitExtractionError, {
-        error: {
-          message: 'Failed to extract external sync units due to timeout.',
-        },
-      });
+    it('should use the SDK timeout handler', () => {
+      expect(captured.onTimeout).toBeUndefined();
     });
   });
 });

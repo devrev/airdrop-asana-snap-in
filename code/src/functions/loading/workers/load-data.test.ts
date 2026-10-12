@@ -1,18 +1,17 @@
-import { LoaderEventType, processTask } from '@devrev/ts-adaas';
+import { processLoadingTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { denormalizeComment, denormalizeLink, denormalizeTask } from '@asana/data-denormalization';
 import { handleLoadingError, resolveExternalId, resolveRef } from '@utils/loading-helpers';
 
-jest.mock('@devrev/ts-adaas', () => ({
-  processTask: jest.fn(),
-  LoaderEventType: jest.requireActual('@devrev/ts-adaas').LoaderEventType,
+jest.mock('@devrev/airsync-sdk', () => ({
+  processLoadingTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
 jest.mock('@asana/data-denormalization');
 jest.mock('@utils/loading-helpers');
 
-const mockProcessTask = processTask as jest.Mock;
+const mockProcessTask = processLoadingTask as jest.Mock;
 const mockDenormalizeTask = denormalizeTask as jest.Mock;
 const mockDenormalizeComment = denormalizeComment as jest.Mock;
 const mockDenormalizeLink = denormalizeLink as jest.Mock;
@@ -24,8 +23,7 @@ const mockResolveRef = resolveRef as jest.Mock;
 require('./load-data');
 
 const captured = mockProcessTask.mock.calls[0][0];
-const taskFn: (params: { adapter: any }) => Promise<void> = captured.task;
-const onTimeoutFn: (params: { adapter: any }) => Promise<void> = captured.onTimeout;
+const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 
 const mockAsanaClient = {
   projectId: 'project-123',
@@ -49,8 +47,7 @@ function createMockAdapter() {
         event_context: { external_sync_unit_id: 'project-123', sync_unit_id: 'su-1' },
       },
     },
-    emit: jest.fn(),
-    loadItemTypes: jest.fn().mockResolvedValue(undefined),
+    loadItemTypes: jest.fn().mockResolvedValue({ status: 'success' }),
   } as any;
 }
 
@@ -59,7 +56,7 @@ describe('load-data worker', () => {
     jest.clearAllMocks();
     (AsanaClient as unknown as jest.Mock).mockImplementation(() => mockAsanaClient);
     mockResolveExternalId.mockResolvedValue(null);
-    mockHandleLoadingError.mockReturnValue({ error: 'test error' });
+    mockHandleLoadingError.mockReturnValue({ status: 'error', error: { message: 'test error' } });
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -67,10 +64,10 @@ describe('load-data worker', () => {
     jest.restoreAllMocks();
   });
 
-  describe('processTask registration', () => {
-    it('should register task and onTimeout handlers', () => {
+  describe('processLoadingTask registration', () => {
+    it('should register task with the default timeout handler', () => {
       expect(taskFn).toBeDefined();
-      expect(onTimeoutFn).toBeDefined();
+      expect(captured.onTimeout).toBeUndefined();
     });
 
     it('should pass item types to loadItemTypes', async () => {
@@ -83,36 +80,39 @@ describe('load-data worker', () => {
       expect(itemTypes).toEqual(['tasks', 'subtasks', 'comments', 'links']);
     });
 
-    it('should emit DataLoadingDone on success', async () => {
+    it('should preserve progress when loading pauses at the timeout', async () => {
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.DataLoadingDone);
+      adapter.loadItemTypes.mockResolvedValue({ status: 'progress' });
+
+      expect(await taskFn({ adapter })).toEqual({ status: 'progress' });
     });
 
-    it('should emit DataLoadingDelayed on rate limit error', async () => {
+    it('should return success on success', async () => {
       const adapter = createMockAdapter();
-      adapter.loadItemTypes.mockRejectedValue(new Error('rate limited'));
-      mockHandleLoadingError.mockReturnValue({ delay: 30 });
-
-      await taskFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.DataLoadingDelayed, { delay: 30 });
+      const taskResult = await taskFn({ adapter });
+      expect(taskResult).toEqual({ status: 'success' });
     });
 
-    it('should emit DataLoadingError on other errors', async () => {
+    it('should return delay on rate limit error', async () => {
       const adapter = createMockAdapter();
-      adapter.loadItemTypes.mockRejectedValue(new Error('fail'));
-      mockHandleLoadingError.mockReturnValue({ error: 'Something failed' });
+      adapter.loadItemTypes.mockResolvedValue({ status: 'delay', delaySeconds: 30 });
+      mockHandleLoadingError.mockReturnValue({ status: 'delay', delaySeconds: 30 });
 
-      await taskFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.DataLoadingError, {
-        error: { message: 'Something failed' },
-      });
+      const taskResult = await taskFn({ adapter });
+      expect(taskResult).toEqual({ status: 'delay', delaySeconds: 30 });
     });
 
-    it('should emit DataLoadingProgress on timeout', async () => {
+    it('should return error on other errors', async () => {
       const adapter = createMockAdapter();
-      await onTimeoutFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.DataLoadingProgress);
+      adapter.loadItemTypes.mockResolvedValue({ status: 'error', error: { message: 'Something failed' } });
+      mockHandleLoadingError.mockReturnValue({ status: 'error', error: { message: 'Something failed' } });
+
+      const taskResult = await taskFn({ adapter });
+      expect(taskResult).toEqual({ status: 'error', error: { message: 'Something failed' } });
+    });
+
+    it('should use the SDK timeout handler', () => {
+      expect(captured.onTimeout).toBeUndefined();
     });
   });
 
@@ -144,6 +144,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('new-task-1');
       expect(result.modifiedDate).toBe('2024-01-01T00:00:00Z');
       expect(mockAsanaClient.createTask).toHaveBeenCalledWith(
@@ -163,7 +164,8 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('no GID');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('no GID');
     });
 
     it('should update a task with external ID', async () => {
@@ -182,6 +184,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('task-1');
       expect(mockAsanaClient.updateTask).toHaveBeenCalledWith('task-1', { data: { name: 'Updated' } });
     });
@@ -193,7 +196,8 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('No external ID');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('No external ID');
     });
   });
 
@@ -224,10 +228,24 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('story-1');
       expect(mockAsanaClient.createTaskComment).toHaveBeenCalledWith('task-1', {
         data: { html_text: '<body>Hello</body>' },
       });
+    });
+
+    it('should return an error when Asana creates a comment without a GID', async () => {
+      mockDenormalizeComment.mockResolvedValue({ parentGid: 'task-1', request: { data: {} } });
+      mockAsanaClient.createTaskComment.mockResolvedValue({ data: { data: {} } });
+
+      const result = await createComment({
+        item: { id: { devrev: 'don:1' }, data: {} },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result).toEqual({ status: 'error', error: { message: expect.stringContaining('no GID returned') } });
     });
 
     it('should return error when parent cannot be resolved', async () => {
@@ -239,7 +257,8 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('Cannot resolve parent');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('Cannot resolve parent');
     });
 
     it('should update the Asana comment story on edit using the external story GID', async () => {
@@ -256,6 +275,7 @@ describe('load-data worker', () => {
       });
 
       expect(result.error).toBeUndefined();
+      expect(result.status).toBe('success');
       expect(result.id).toBe('story-1');
       expect(mockAsanaClient.updateTaskComment).toHaveBeenCalledWith('story-1', {
         data: { html_text: '<body>Edited body</body>' },
@@ -276,6 +296,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('story-77');
       expect(mockAsanaClient.updateTaskComment).toHaveBeenCalledWith('story-77', expect.any(Object));
     });
@@ -289,7 +310,8 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('No external ID');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('No external ID');
       expect(mockAsanaClient.updateTaskComment).not.toHaveBeenCalled();
     });
 
@@ -346,6 +368,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('story-1');
       expect(result.modifiedDate).toBeUndefined();
     });
@@ -374,6 +397,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('is_dependent_on_task-1_task-2');
       expect(mockAsanaClient.addTaskDependencies).toHaveBeenCalledWith('task-1', {
         data: { dependencies: ['task-2'] },
@@ -393,6 +417,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('is_parent_of_parent-1_child-1');
       expect(mockAsanaClient.setTaskParent).toHaveBeenCalledWith('child-1', {
         data: { parent: 'parent-1' },
@@ -412,6 +437,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('is_duplicate_of_task-1_task-2');
       expect(mockAsanaClient.addTaskDependencies).not.toHaveBeenCalled();
       expect(mockAsanaClient.setTaskParent).not.toHaveBeenCalled();
@@ -426,7 +452,8 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('Cannot resolve link');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('Cannot resolve link');
     });
 
     it('should skip is_related_to links gracefully', async () => {
@@ -442,6 +469,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('is_related_to_task-1_task-2');
     });
 
@@ -458,6 +486,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('unknown_type_task-1_task-2');
     });
   });
@@ -490,6 +519,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('subtask-1');
       expect(mockAsanaClient.createTaskSubtask).toHaveBeenCalledWith('parent-gid-1', { data: { name: 'Sub 1' } });
     });
@@ -510,6 +540,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('standalone-1');
       expect(mockAsanaClient.createTask).toHaveBeenCalled();
     });
@@ -529,6 +560,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('standalone-2');
     });
 
@@ -545,7 +577,8 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('no GID');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('no GID');
     });
 
     it('should add tags to created subtask', async () => {
@@ -582,6 +615,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('sub-1');
     });
   });
@@ -612,6 +646,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('task-1');
       expect(mockAsanaClient.addTaskToSection).toHaveBeenCalledWith('section-1', { data: { task: 'task-1' } });
       expect(mockAsanaClient.addTagToTask).toHaveBeenCalledTimes(2);
@@ -634,13 +669,14 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('task-1');
       expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('section move to'));
     });
 
     it('should handle rate limit errors via handleLoadingError', async () => {
       mockDenormalizeTask.mockRejectedValue(new Error('rate limit'));
-      mockHandleLoadingError.mockReturnValue({ delay: 30 });
+      mockHandleLoadingError.mockReturnValue({ status: 'delay', delaySeconds: 30 });
 
       const result = await updateTask({
         item: { id: { devrev: 'don:1', external: 'task-1' }, data: {} },
@@ -648,7 +684,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.delay).toBe(30);
+      expect(result.delaySeconds).toBe(30);
     });
   });
 
@@ -675,6 +711,7 @@ describe('load-data worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('is_dependent_on_task-1_task-2');
     });
   });

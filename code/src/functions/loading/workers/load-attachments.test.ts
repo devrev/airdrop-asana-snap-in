@@ -1,11 +1,10 @@
-import { LoaderEventType, processTask } from '@devrev/ts-adaas';
+import { processLoadingTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { handleLoadingError, resolveExternalId } from '@utils/loading-helpers';
 
-jest.mock('@devrev/ts-adaas', () => ({
-  processTask: jest.fn(),
-  LoaderEventType: jest.requireActual('@devrev/ts-adaas').LoaderEventType,
+jest.mock('@devrev/airsync-sdk', () => ({
+  processLoadingTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
 jest.mock('@utils/loading-helpers');
@@ -20,7 +19,7 @@ jest.mock('axios', () => {
   return { default: mockAxios, __esModule: true, ...mockAxios };
 });
 
-const mockProcessTask = processTask as jest.Mock;
+const mockProcessTask = processLoadingTask as jest.Mock;
 const mockHandleLoadingError = handleLoadingError as jest.Mock;
 const mockResolveExternalId = resolveExternalId as jest.Mock;
 
@@ -28,8 +27,7 @@ const mockResolveExternalId = resolveExternalId as jest.Mock;
 require('./load-attachments');
 
 const captured = mockProcessTask.mock.calls[0][0];
-const taskFn: (params: { adapter: any }) => Promise<void> = captured.task;
-const onTimeoutFn: (params: { adapter: any }) => Promise<void> = captured.onTimeout;
+const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 
 const mockAsanaClient = {
   createTaskAttachment: jest.fn(),
@@ -46,8 +44,7 @@ function createMockAdapter() {
         event_context: { external_sync_unit_id: 'project-123', sync_unit_id: 'su-1' },
       },
     },
-    emit: jest.fn(),
-    loadAttachments: jest.fn().mockResolvedValue(undefined),
+    loadAttachments: jest.fn().mockResolvedValue({ status: 'success' }),
   } as any;
 }
 
@@ -56,13 +53,13 @@ describe('load-attachments worker', () => {
     jest.clearAllMocks();
     (AsanaClient as unknown as jest.Mock).mockImplementation(() => mockAsanaClient);
     mockResolveExternalId.mockResolvedValue(null);
-    mockHandleLoadingError.mockReturnValue({ error: 'test error' });
+    mockHandleLoadingError.mockReturnValue({ status: 'error', error: { message: 'test error' } });
   });
 
-  describe('processTask registration', () => {
-    it('should register task and onTimeout handlers', () => {
+  describe('processLoadingTask registration', () => {
+    it('should register task with the default timeout handler', () => {
       expect(taskFn).toBeDefined();
-      expect(onTimeoutFn).toBeDefined();
+      expect(captured.onTimeout).toBeUndefined();
     });
 
     it('should call loadAttachments with create function', async () => {
@@ -72,36 +69,39 @@ describe('load-attachments worker', () => {
       expect(adapter.loadAttachments).toHaveBeenCalledWith({ create: expect.any(Function) });
     });
 
-    it('should emit AttachmentLoadingDone on success', async () => {
+    it('should preserve progress when loading pauses at the timeout', async () => {
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.AttachmentLoadingDone);
+      adapter.loadAttachments.mockResolvedValue({ status: 'progress' });
+
+      expect(await taskFn({ adapter })).toEqual({ status: 'progress' });
     });
 
-    it('should emit AttachmentLoadingDelayed on rate limit', async () => {
+    it('should return success on success', async () => {
       const adapter = createMockAdapter();
-      adapter.loadAttachments.mockRejectedValue(new Error('rate limited'));
-      mockHandleLoadingError.mockReturnValue({ delay: 60 });
-
-      await taskFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.AttachmentLoadingDelayed, { delay: 60 });
+      const taskResult = await taskFn({ adapter });
+      expect(taskResult).toEqual({ status: 'success' });
     });
 
-    it('should emit AttachmentLoadingError on other errors', async () => {
+    it('should return delay on rate limit', async () => {
       const adapter = createMockAdapter();
-      adapter.loadAttachments.mockRejectedValue(new Error('fail'));
-      mockHandleLoadingError.mockReturnValue({ error: 'Upload failed' });
+      adapter.loadAttachments.mockResolvedValue({ status: 'delay', delaySeconds: 60 });
+      mockHandleLoadingError.mockReturnValue({ status: 'delay', delaySeconds: 60 });
 
-      await taskFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.AttachmentLoadingError, {
-        error: { message: 'Upload failed' },
-      });
+      const taskResult = await taskFn({ adapter });
+      expect(taskResult).toEqual({ status: 'delay', delaySeconds: 60 });
     });
 
-    it('should emit AttachmentLoadingProgress on timeout', async () => {
+    it('should return error on other errors', async () => {
       const adapter = createMockAdapter();
-      await onTimeoutFn({ adapter });
-      expect(adapter.emit).toHaveBeenCalledWith(LoaderEventType.AttachmentLoadingProgress);
+      adapter.loadAttachments.mockResolvedValue({ status: 'error', error: { message: 'Upload failed' } });
+      mockHandleLoadingError.mockReturnValue({ status: 'error', error: { message: 'Upload failed' } });
+
+      const taskResult = await taskFn({ adapter });
+      expect(taskResult).toEqual({ status: 'error', error: { message: 'Upload failed' } });
+    });
+
+    it('should use the SDK timeout handler', () => {
+      expect(captured.onTimeout).toBeUndefined();
     });
   });
 
@@ -132,6 +132,7 @@ describe('load-attachments worker', () => {
         event: createMockAdapter().event,
       });
 
+      expect(result.status).toBe('success');
       expect(result.id).toBe('attachment-1');
       expect(axios.get).toHaveBeenCalledWith('https://devrev.ai/files/123', { responseType: 'arraybuffer' });
       expect(mockAsanaClient.createTaskAttachment).toHaveBeenCalledWith(
@@ -139,6 +140,21 @@ describe('load-attachments worker', () => {
         expect.any(Buffer),
         'test.pdf'
       );
+    });
+
+    it('should return an error when Asana uploads an attachment without a GID', async () => {
+      mockResolveExternalId.mockResolvedValue('asana-task-1');
+      const axios = (await import('axios')).default;
+      (axios.get as jest.Mock).mockResolvedValue({ data: Buffer.from('file content') });
+      mockAsanaClient.createTaskAttachment.mockResolvedValue({ data: { data: {} } });
+
+      const result = await createAttachment({
+        item: { parent_id: 'devrev-task-1', file_name: 'test.pdf', url: 'https://example.com/file' },
+        mappers: {},
+        event: createMockAdapter().event,
+      });
+
+      expect(result).toEqual({ status: 'error', error: { message: expect.stringContaining('no GID returned') } });
     });
 
     it('should return error when parent cannot be resolved', async () => {
@@ -150,7 +166,8 @@ describe('load-attachments worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('Cannot resolve parent');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('Cannot resolve parent');
     });
 
     it('should return error when parent_id is missing', async () => {
@@ -160,7 +177,8 @@ describe('load-attachments worker', () => {
         event: createMockAdapter().event,
       });
 
-      expect(result.error).toContain('Cannot resolve parent');
+      expect(result.status).toBe('error');
+      expect(result.error.message).toContain('Cannot resolve parent');
     });
 
     describe('comment attachments', () => {
@@ -186,7 +204,8 @@ describe('load-attachments worker', () => {
 
         const result = await createAttachment({ item: commentItem, mappers: {}, event: createMockAdapter().event });
 
-        expect(result.id).toBe('attachment-1');
+        expect(result.status).toBe('success');
+      expect(result.id).toBe('attachment-1');
         expect(mockAsanaClient.createTaskAttachment).toHaveBeenCalledWith(
           'asana-task-1',
           expect.any(Buffer),
@@ -219,7 +238,8 @@ describe('load-attachments worker', () => {
 
         const result = await createAttachment({ item: commentItem, mappers: {}, event: createMockAdapter().event });
 
-        expect(result.id).toBe('attachment-1');
+        expect(result.status).toBe('success');
+      expect(result.id).toBe('attachment-1');
       });
 
       it('should not touch comments for a plain task attachment', async () => {
@@ -239,7 +259,7 @@ describe('load-attachments worker', () => {
       mockResolveExternalId.mockResolvedValue('asana-task-1');
       const axios = (await import('axios')).default;
       (axios.get as jest.Mock).mockRejectedValue(new Error('Download failed'));
-      mockHandleLoadingError.mockReturnValue({ error: 'Download failed' });
+      mockHandleLoadingError.mockReturnValue({ status: 'error', error: { message: 'Download failed' } });
 
       const result = await createAttachment({
         item: { parent_id: 'devrev-task-1', file_name: 'test.pdf', url: 'https://example.com/file' },

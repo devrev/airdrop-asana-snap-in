@@ -1,4 +1,4 @@
-import { ExtractorEventType, processTask, RepoInterface, WorkerAdapter } from '@devrev/ts-adaas';
+import { ExtractionAdapter, processExtractionTask, RepoInterface } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
@@ -66,7 +66,7 @@ const repos: RepoInterface[] = [
 
 export interface ItemTypeToExtract {
   name: typeof ItemType.USERS | typeof ItemType.TAGS | typeof ItemType.GROUPS | typeof ItemType.TASKS;
-  extractFunction: (asanaClient: AsanaClient, adapter: WorkerAdapter<ExtractorState>) => Promise<void>;
+  extractFunction: (asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>) => Promise<void>;
 }
 
 const itemTypesToExtract: ItemTypeToExtract[] = [
@@ -88,14 +88,14 @@ const itemTypesToExtract: ItemTypeToExtract[] = [
   },
 ];
 
-processTask<ExtractorState>({
+processExtractionTask<ExtractorState>({
   task: async ({ adapter }) => {
     adapter.initializeRepos(repos);
     const asanaClient = new AsanaClient(adapter.event);
     prepareStateForExtraction(adapter);
 
     for (const itemType of itemTypesToExtract) {
-      if (adapter.isTimeout) return;
+      if (adapter.isTimeout) return { status: 'progress' };
 
       if (!adapter.shouldExtract(itemType.name)) {
         console.log(`Skipping extraction of ${itemType.name} as it's not in the extraction scope.`);
@@ -112,7 +112,7 @@ processTask<ExtractorState>({
           `${adapter.state[itemType.name].total > 0 ? 'Continuing' : 'Starting'} extraction of ${itemType.name}.`
         );
         await itemType.extractFunction(asanaClient, adapter);
-        if (adapter.isTimeout) return;
+        if (adapter.isTimeout) return { status: 'progress' };
 
         adapter.state[itemType.name].completed = true;
         console.log(`Finished extracting ${adapter.state[itemType.name].total} ${itemType.name}. Marked as complete.`);
@@ -143,13 +143,11 @@ processTask<ExtractorState>({
 
         if (delay) {
           console.warn(`Rate limited during ${itemType.name} extraction. Delaying for ${delay}s.`);
-          await adapter.emit(ExtractorEventType.DataExtractionDelayed, { delay });
+          return { status: 'delay', delaySeconds: delay };
         } else {
           console.error(`Error during ${itemType.name} extraction: ${extractionError?.message}`);
-          await adapter.emit(ExtractorEventType.DataExtractionError, { error: extractionError });
+          return { status: 'error', error: extractionError ?? { message: 'Data extraction failed' } };
         }
-
-        return;
       }
     }
 
@@ -158,9 +156,6 @@ processTask<ExtractorState>({
         .map((item) => `${item.name}: ${adapter.state[item.name].total}`)
         .join(', ')}.`
     );
-    await adapter.emit(ExtractorEventType.DataExtractionDone);
-  },
-  onTimeout: async ({ adapter }) => {
-    await adapter.emit(ExtractorEventType.DataExtractionProgress);
+    return { status: 'success' };
   },
 });

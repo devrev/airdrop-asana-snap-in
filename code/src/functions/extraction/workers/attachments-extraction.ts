@@ -1,9 +1,8 @@
 import {
   ExternalSystemAttachmentStreamingParams,
   ExternalSystemAttachmentStreamingResponse,
-  ExtractorEventType,
-  processTask,
-} from '@devrev/ts-adaas';
+  processExtractionTask,
+} from '@devrev/airsync-sdk';
 import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
@@ -27,7 +26,7 @@ async function stream({
     const response = await asanaClient.getAttachment(item.id);
     const url = response.data?.data?.download_url;
     if (!url) {
-      return { error: { message: `Asana returned no download_url for attachment ${item.id}.` } };
+      return { status: 'error', error: { message: `Asana returned no download_url for attachment ${item.id}.` } };
     }
 
     const httpStream = await axios.get(url, {
@@ -37,40 +36,29 @@ async function stream({
       },
     });
 
-    return { httpStream };
+    return { status: 'success', httpStream };
   } catch (error) {
     const { delay, error: extractionError } = handleExtractionError(error);
     if (delay) {
       console.warn(`Rate limited while streaming attachment ${item.id}. Delaying for ${delay}s.`);
-      return { delay };
+      return { status: 'delay', delaySeconds: delay };
     } else {
       console.warn(`Failed to stream attachment ${item.id}: ${extractionError?.message}`);
-      return { error: extractionError };
+      return { status: 'error', error: extractionError ?? { message: 'Attachment streaming failed' } };
     }
   }
 }
 
-processTask<ExtractorState>({
+processExtractionTask<ExtractorState>({
   task: async ({ adapter }) => {
     const response = await adapter.streamAttachments({
       stream,
       batchSize: ATTACHMENT_BATCH_SIZE,
     });
 
-    if (response?.delay) {
-      await adapter.emit(ExtractorEventType.AttachmentExtractionDelayed, {
-        delay: response.delay,
-      });
-    } else if (response?.error) {
-      await adapter.emit(ExtractorEventType.AttachmentExtractionError, {
-        error: response.error,
-      });
-    } else {
+    if (response.status === 'success') {
       console.log('Attachment streaming completed.');
-      await adapter.emit(ExtractorEventType.AttachmentExtractionDone);
     }
-  },
-  onTimeout: async ({ adapter }) => {
-    await adapter.emit(ExtractorEventType.AttachmentExtractionProgress);
+    return response;
   },
 });

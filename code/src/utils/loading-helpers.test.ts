@@ -13,7 +13,7 @@ describe('handleLoadingError', () => {
     });
 
     const result = handleLoadingError(error);
-    expect(result).toEqual({ delay: 30 });
+    expect(result).toEqual({ status: 'delay', delaySeconds: 30 });
   });
 
   it('should default delay to 60 when Retry-After header is missing', () => {
@@ -26,7 +26,7 @@ describe('handleLoadingError', () => {
     });
 
     const result = handleLoadingError(error);
-    expect(result).toEqual({ delay: 60 });
+    expect(result).toEqual({ status: 'delay', delaySeconds: 60 });
   });
 
   it('should return error message for non-429 Axios error', () => {
@@ -39,20 +39,19 @@ describe('handleLoadingError', () => {
     });
 
     const result = handleLoadingError(error);
-    expect(result.error).toContain('Error during loading:');
-    expect(result.delay).toBeUndefined();
+    expect(result).toMatchObject({ status: 'error', error: { message: expect.stringContaining('Error during loading:') } });
   });
 
   it('should return error message for non-Axios error', () => {
     const result = handleLoadingError(new Error('Something went wrong'));
-    expect(result.error).toContain('Error during loading:');
-    expect(result.error).toContain('Something went wrong');
+    expect(result).toMatchObject({ status: 'error', error: { message: expect.stringContaining('Error during loading:') } });
+    expect(result).toMatchObject({ status: 'error', error: { message: expect.stringContaining('Something went wrong') } });
   });
 
   it('should return error message for string error', () => {
     const result = handleLoadingError('unexpected failure');
-    expect(result.error).toContain('Error during loading:');
-    expect(result.error).toContain('unexpected failure');
+    expect(result).toMatchObject({ status: 'error', error: { message: expect.stringContaining('Error during loading:') } });
+    expect(result).toMatchObject({ status: 'error', error: { message: expect.stringContaining('unexpected failure') } });
   });
 });
 
@@ -60,7 +59,7 @@ describe('resolveExternalId', () => {
   it('should return first external_id when mapper finds record', async () => {
     const mappers = {
       getByTargetId: jest.fn().mockResolvedValue({
-        data: { sync_mapper_record: { external_ids: ['asana-gid-123', 'asana-gid-456'] } },
+        sync_mapper_record: { external_ids: ['asana-gid-123', 'asana-gid-456'] },
       }),
     };
 
@@ -75,7 +74,7 @@ describe('resolveExternalId', () => {
   it('should return null when mapper returns no external_ids', async () => {
     const mappers = {
       getByTargetId: jest.fn().mockResolvedValue({
-        data: { sync_mapper_record: { external_ids: [] } },
+        sync_mapper_record: { external_ids: [] },
       }),
     };
 
@@ -85,7 +84,7 @@ describe('resolveExternalId', () => {
 
   it('should return null when mapper returns no record', async () => {
     const mappers = {
-      getByTargetId: jest.fn().mockResolvedValue({ data: {} }),
+      getByTargetId: jest.fn().mockResolvedValue(null),
     };
 
     const result = await resolveExternalId(mappers, 'sync-unit-1', 'devrev-id-1');

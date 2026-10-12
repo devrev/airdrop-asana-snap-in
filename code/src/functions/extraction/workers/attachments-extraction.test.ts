@@ -1,30 +1,17 @@
-import { processTask } from '@devrev/ts-adaas';
+import { processExtractionTask } from '@devrev/airsync-sdk';
 import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
 import { handleExtractionError } from '@utils/data-helpers';
 
-const ExtractorEventType = {
-  AttachmentExtractionDone: 'ATTACHMENT_EXTRACTION_DONE',
-  AttachmentExtractionDelayed: 'ATTACHMENT_EXTRACTION_DELAYED',
-  AttachmentExtractionError: 'ATTACHMENT_EXTRACTION_ERROR',
-  AttachmentExtractionProgress: 'ATTACHMENT_EXTRACTION_PROGRESS',
-} as const;
-
-jest.mock('@devrev/ts-adaas', () => ({
-  processTask: jest.fn(),
-  ExtractorEventType: {
-    AttachmentExtractionDone: 'ATTACHMENT_EXTRACTION_DONE',
-    AttachmentExtractionDelayed: 'ATTACHMENT_EXTRACTION_DELAYED',
-    AttachmentExtractionError: 'ATTACHMENT_EXTRACTION_ERROR',
-    AttachmentExtractionProgress: 'ATTACHMENT_EXTRACTION_PROGRESS',
-  },
+jest.mock('@devrev/airsync-sdk', () => ({
+  processExtractionTask: jest.fn(),
 }));
 jest.mock('axios');
 jest.mock('@asana/api-client');
 jest.mock('@utils/data-helpers');
 
-const mockProcessTask = processTask as jest.Mock;
+const mockProcessTask = processExtractionTask as jest.Mock;
 const mockAxiosGet = axios.get as jest.Mock;
 const mockHandleExtractionError = handleExtractionError as jest.Mock;
 const MockAsanaClient = AsanaClient as jest.MockedClass<typeof AsanaClient>;
@@ -34,8 +21,7 @@ const mockGetAttachment = jest.fn();
 require('./attachments-extraction');
 
 const captured = mockProcessTask.mock.calls[0][0];
-const taskFn: (params: { adapter: any }) => Promise<void> = captured.task;
-const onTimeoutFn: (params: { adapter: any }) => Promise<void> = captured.onTimeout;
+const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 
 const event = { payload: { connection_data: { key: 'k', org_id: 'w' }, event_context: {} } } as any;
 const staleUrl = 'https://asanausercontent.com/us1/assets/1/att1/abc?e=1789755944&v=0&t=stale';
@@ -44,8 +30,7 @@ const freshUrl = 'https://asanausercontent.com/us1/assets/1/att1/abc?e=179027240
 function createMockAdapter(streamAttachmentsReturn?: any) {
   return {
     event,
-    emit: jest.fn(),
-    streamAttachments: jest.fn().mockResolvedValue(streamAttachmentsReturn ?? undefined),
+    streamAttachments: jest.fn().mockResolvedValue(streamAttachmentsReturn ?? { status: 'success' }),
   } as any;
 }
 
@@ -66,32 +51,34 @@ describe('attachments-extraction worker', () => {
       });
     });
 
-    it('should emit AttachmentExtractionDone when streamAttachments returns no error or delay', async () => {
+    it('should return success when streamAttachments returns no error or delay', async () => {
       const adapter = createMockAdapter(undefined);
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.AttachmentExtractionDone);
+      expect(taskResult).toEqual({ status: 'success' });
     });
 
-    it('should emit AttachmentExtractionDelayed when streamAttachments returns delay', async () => {
-      const adapter = createMockAdapter({ delay: 120 });
-      await taskFn({ adapter });
+    it('should preserve progress when attachment streaming pauses at the timeout', async () => {
+      const adapter = createMockAdapter({ status: 'progress' });
 
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.AttachmentExtractionDelayed, {
-        delay: 120,
-      });
-      expect(adapter.emit).not.toHaveBeenCalledWith(ExtractorEventType.AttachmentExtractionDone);
+      expect(await taskFn({ adapter })).toEqual({ status: 'progress' });
     });
 
-    it('should emit AttachmentExtractionError when streamAttachments returns error', async () => {
+    it('should return delay when streamAttachments returns delay', async () => {
+      const adapter = createMockAdapter({ status: 'delay', delaySeconds: 120 });
+      const taskResult = await taskFn({ adapter });
+
+      expect(taskResult).toEqual({ status: 'delay', delaySeconds: 120, });
+      expect(taskResult.status).not.toBe('success');
+    });
+
+    it('should return error when streamAttachments returns error', async () => {
       const errorObj = { message: 'download failed' };
-      const adapter = createMockAdapter({ error: errorObj });
-      await taskFn({ adapter });
+      const adapter = createMockAdapter({ status: 'error', error: errorObj });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.AttachmentExtractionError, {
-        error: errorObj,
-      });
-      expect(adapter.emit).not.toHaveBeenCalledWith(ExtractorEventType.AttachmentExtractionDone);
+      expect(taskResult).toEqual({ status: 'error', error: errorObj, });
+      expect(taskResult.status).not.toBe('success');
     });
   });
 
@@ -117,7 +104,7 @@ describe('attachments-extraction worker', () => {
         headers: { 'Accept-Encoding': 'identity' },
       });
       expect(mockAxiosGet).not.toHaveBeenCalledWith(staleUrl, expect.anything());
-      expect(result).toEqual({ httpStream: mockResponse });
+      expect(result).toEqual({ status: 'success', httpStream: mockResponse });
     });
 
     it('should not create a new Asana client per attachment', async () => {
@@ -137,6 +124,7 @@ describe('attachments-extraction worker', () => {
       const result = await streamFn({ item: { id: 'att1', url: staleUrl }, event });
 
       expect(mockAxiosGet).not.toHaveBeenCalled();
+      expect(result.status).toBe('error');
       expect(result.error.message).toContain('att1');
     });
 
@@ -149,7 +137,7 @@ describe('attachments-extraction worker', () => {
 
       expect(mockHandleExtractionError).toHaveBeenCalledWith(error);
       expect(mockAxiosGet).not.toHaveBeenCalled();
-      expect(result).toEqual({ delay: 60 });
+      expect(result).toEqual({ status: 'delay', delaySeconds: 60 });
     });
 
     it('should return delay when the download is rate limited', async () => {
@@ -161,7 +149,7 @@ describe('attachments-extraction worker', () => {
       const result = await streamFn({ item: { id: 'att1', url: staleUrl }, event });
 
       expect(mockHandleExtractionError).toHaveBeenCalledWith(error);
-      expect(result).toEqual({ delay: 60 });
+      expect(result).toEqual({ status: 'delay', delaySeconds: 60 });
     });
 
     it('should return error when the download fails without delay', async () => {
@@ -173,16 +161,13 @@ describe('attachments-extraction worker', () => {
 
       const result = await streamFn({ item: { id: 'att1', url: staleUrl }, event });
 
-      expect(result).toEqual({ error: extractionError });
+      expect(result).toEqual({ status: 'error', error: extractionError });
     });
   });
 
   describe('onTimeout', () => {
-    it('should emit AttachmentExtractionProgress', async () => {
-      const adapter = createMockAdapter();
-      await onTimeoutFn({ adapter });
-
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.AttachmentExtractionProgress);
+    it('should use the SDK timeout handler', () => {
+      expect(captured.onTimeout).toBeUndefined();
     });
   });
 });

@@ -1,4 +1,4 @@
-import { AirdropEvent } from '@devrev/ts-adaas';
+import { AirSyncEvent } from '@devrev/airsync-sdk';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import axiosRetry from 'axios-retry';
 
@@ -159,7 +159,7 @@ export class AsanaClient {
   public workspaceId: string;
   public projectId: string;
 
-  constructor(event: AirdropEvent) {
+  constructor(event: AirSyncEvent) {
     const apiKey = event.payload.connection_data.key;
     this.workspaceId = event.payload.connection_data.org_id;
     this.projectId = event.payload.event_context.external_sync_unit_id;
@@ -182,7 +182,7 @@ export class AsanaClient {
         return delay;
       },
       // 429s are not retried here: waiting on Retry-After could run the worker into the Lambda
-      // hard timeout, so callers emit a *_DELAYED event and let the platform reschedule instead.
+      // hard timeout, so callers return a delay result and let the platform reschedule instead.
       retryCondition: (error) => {
         if (!error.response) {
           return true;

@@ -6,7 +6,7 @@ Asana AirSync connector for DevRev. This is the source of the snap-in published 
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - [DevRev CLI](https://developer.devrev.ai/snap-in-development/references/cli-install)
 - DevRev organization
 - [jq](https://stedolan.github.io/jq/download/)

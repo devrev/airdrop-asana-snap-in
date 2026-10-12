@@ -1,4 +1,4 @@
-import type { ExternalDomainMetadata } from '@devrev/ts-adaas';
+import type { ExternalDomainMetadata } from '@devrev/airsync-sdk';
 import { AxiosError, type AxiosResponse } from 'axios';
 
 import type { AsanaCustomField, AsanaEnumOption, AsanaSection } from '@asana/types';

@@ -1,4 +1,4 @@
-import { ExternalSyncUnit } from '@devrev/ts-adaas';
+import { ExternalSyncUnit } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';

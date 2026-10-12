@@ -4,13 +4,13 @@
 
 DevRev AirSync connector for Asana. Supports bidirectional synchronization: extraction (Asana → DevRev) of tasks, subtasks, users, tags, comments, attachments, links, groups (teams), group memberships, and access rules (project permissions), and loading (DevRev → Asana) of tasks, subtasks, comments, links, and attachments. Supports initial, incremental, and time-scoped syncs.
 
-Runs as a **snap-in** (plug-in) on AWS Lambda using the `@devrev/ts-adaas` SDK. Each sync operates on an **Asana Project** as its sync unit, selected by the user from their workspace.
+Runs as a **snap-in** (plug-in) on AWS Lambda using the `@devrev/airsync-sdk` SDK. Each sync operates on an **Asana Project** as its sync unit, selected by the user from their workspace.
 
 ## Key Concepts
 
 - **AirSync / Airdrop**: DevRev's data synchronization framework for migrating and keeping data in sync between DevRev and external systems.
 - **Snap-in**: A plug-in deployed to AWS Lambda. Max execution time is 15 minutes (hard timeout); the SDK sends a soft timeout signal at ~10-13 minutes so the worker can save state and exit gracefully.
-- **`@devrev/ts-adaas` SDK**: The core SDK this connector is built on. Public npm package and open-source repo at https://github.com/devrev/adaas-sdk. Handles state persistence between Lambda invocations, file uploads (artifacts), worker orchestration (main thread + worker threads), attachment streaming, event handling, and the AirSync control protocol. Key exports used by this connector: `spawn`, `processTask`, `WorkerAdapter`, `AirdropEvent`, `ExtractorEventType`, `EventType`, `SyncMode`, `RepoInterface`, `NormalizedItem`, `NormalizedAttachment`.
+- **`@devrev/airsync-sdk` SDK**: The core SDK this connector is built on. Public npm package and open-source repo at https://github.com/devrev/adaas-sdk. Handles state persistence between Lambda invocations, file uploads (artifacts), worker orchestration (main thread + worker threads), attachment streaming, event handling, and the AirSync control protocol. Key exports used by this connector: `spawn`, `processExtractionTask`, `processLoadingTask`, `ExtractionAdapter`, `LoadingAdapter`, `TaskResult`, `AirSyncEvent`, `EventType`, `SyncMode`, `RepoInterface`, `NormalizedItem`, `NormalizedAttachment`.
 - **Extraction (forward sync)**: Pulling data from Asana into DevRev.
 - **Loading (reverse sync)**: Pushing data from DevRev back to Asana. Supports tasks, subtasks, comments (create-only), links, and attachments.
 - **External Sync Unit (ESU)**: An Asana project — the boundary of a single sync operation.
@@ -24,7 +24,7 @@ Runs as a **snap-in** (plug-in) on AWS Lambda using the `@devrev/ts-adaas` SDK. 
 
 ## Event-Driven Architecture
 
-The snap-in is triggered by JSON events sent by the AirSync backend. Each event follows the `AirdropEvent` structure from `@devrev/ts-adaas`. Based on `event.payload.event_type`, different phases of extraction or loading are executed.
+The snap-in is triggered by JSON events sent by the AirSync backend. Each event follows the `AirSyncEvent` structure from `@devrev/airsync-sdk`. Based on `event.payload.event_type`, different phases of extraction or loading are executed.
 
 ### Extraction event types and phases (in order)
 
@@ -44,11 +44,11 @@ The snap-in is triggered by JSON events sent by the AirSync backend. Each event 
 
 ### Response events emitted by the snap-in
 
-Each worker must emit exactly one response event per invocation:
+Each worker returns a `TaskResult`; the SDK emits exactly one response event per invocation:
 
 - `*_DONE` — phase completed successfully
 - `*_PROGRESS` — runtime limit reached; AirSync will restart the snap-in immediately with a `*_CONTINUE` event
-- `*_DELAY` — rate-limited by external system; AirSync will restart after the specified delay (seconds). Exists for metadata, data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no delay or progress event and must emit `*_DONE` or `*_ERROR`
+- `*_DELAY` — rate-limited by external system; AirSync will restart after the specified delay (seconds). Exists for metadata, data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no delay or progress event and returns success or error
 - `*_ERROR` — phase failed
 
 ### Execution flow
@@ -60,14 +60,14 @@ flowchart LR
     FF -->|"extraction"| ExtRun["extraction/index.ts"]
     FF -->|"loading"| LoadRun["loading/index.ts"]
     ExtRun -->|"spawn()"| Worker["Worker Thread"]
-    Worker -->|"processTask()"| Task["task() / onTimeout()"]
+    Worker -->|"processExtractionTask() / processLoadingTask()"| Task["task()"]
     Task -->|"API calls"| Asana["Asana API"]
-    Task -->|"adapter.emit()"| AirSync
+    Task -->|"TaskResult via SDK"| AirSync
 ```
 
 1. **Entry point**: `code/src/index.ts` exports `functionFactory` from `function-factory.ts`, which maps `"extraction"` and `"loading"` to their respective `run` functions.
 2. **Extraction orchestrator**: `extraction/index.ts` iterates over events and calls `spawn()` from the SDK, passing `initialState`, `initialDomainMapping`, and `baseWorkerPath`. The SDK routes to the correct worker file based on the event type.
-3. **Workers**: Each worker calls `processTask()` with `task` and `onTimeout` handlers. The `task` function receives a `WorkerAdapter` providing access to `adapter.state`, `adapter.getRepo()`, `adapter.emit()`, `adapter.streamAttachments()`, and `adapter.event`.
+3. **Workers**: Extraction workers register with `processExtractionTask()` and loading workers with `processLoadingTask()`. Their task receives a phase-specific adapter and returns a `TaskResult` with success, progress, delay, or error status. The SDK handles event emission and timeout defaults. Extraction adapters expose repos and attachment streaming; loading adapters expose item and attachment loading.
 4. **Data flow**: Data fetched from Asana is normalized (Asana format to DevRev format) and pushed to repos via `adapter.getRepo(itemType)?.push(items)`. The SDK uploads repo contents as JSONL artifacts to the AirSync platform.
 
 ## Repository Structure
@@ -140,7 +140,7 @@ airdrop-asana-snap-in/
 | Subtask | Issue (Work) | `ext_object_type: "Subtask"`, max depth 2 (`MAX_SUBTASK_DEPTH`) |
 | User | Dev User | Mapped by email, read-only |
 | Tag | Tag | Workspace-level tags |
-| Comment (Story) | Comment | Asana stories with `type === 'comment'`; extract-only (Asana API does not support comment updates) |
+| Comment (Story) | Comment | Asana stories with `type === 'comment'`; loading creates comments and attempts updates through the stories API |
 | Attachment | Attachment | Streamed via `adapter.streamAttachments()`; includes inline images from `html_notes` |
 | Link | Link | `is_parent_of` (task → subtask) and `is_dependent_on` (task dependencies) |
 | Team | Group | Workspace-level teams extracted as DevRev groups |
@@ -169,7 +169,7 @@ airdrop-asana-snap-in/
 | `code/src/utils/metadata-helpers.ts` | Metadata enrichment: custom field type mapping, section fetching, stage diagram building |
 | `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction with task counts |
 | `code/src/utils/rich-text-helpers.ts` | Bidirectional rich text conversion: `parseAsanaRichText` (Asana HTML → AirSync rich text for extraction), `serializeToAsanaHtml` and `serializeToPlainText` (AirSync rich text → Asana HTML/plain text for loading) |
-| `code/src/utils/loading-helpers.ts` | `handleLoadingError` (429 → delay, others → error string), `resolveExternalId` (DevRev ID → Asana GID via mappers) |
+| `code/src/utils/loading-helpers.ts` | `handleLoadingError` (429 → delay status, others → error record), `resolveExternalId` (DevRev ID → Asana GID via mappers) |
 | `code/src/asana/constants.ts` | Item type enums (incl. `GROUPS`, `GROUP_MEMBERSHIPS`, `ACCESS_RULES`), link type constants, access level constants, `MAX_SUBTASK_DEPTH = 2` |
 | `manifest.yaml` | Snap-in manifest — functions (`extraction`, `loading`), keyrings (OAuth2 + PAT), imports, service account scopes |
 
@@ -197,7 +197,7 @@ interface ExtractorState {
 - **`total`**: Running count of extracted items.
 - **`lastExtractedTaskIndex`**: Index within a page of tasks for resuming after timeout mid-page.
 
-The SDK persists state automatically when events are emitted. On the next invocation, state is restored so extraction can resume. The `prepareStateForExtraction` function in `data-helpers.ts` resets entity progress for incremental syncs. Time-scoped extraction bounds (`extract_from` and `extract_to`) are read directly from `adapter.event.payload.event_context` — they are not stored in state.
+The SDK persists connector state automatically when it sends the task response; SDK bookkeeping is stored separately. Upgrade between runs after v1 workers finish. Once v2 persists state, rollback requires a verified saved v1 state with the v1 connector, or explicit reset/reinitialization and reimport; draining alone does not restore v1 compatibility. On the next invocation, state is restored so extraction can resume. The `prepareStateForExtraction` function in `data-helpers.ts` resets entity progress for incremental syncs. Time-scoped extraction bounds (`extract_from` and `extract_to`) are read directly from `adapter.event.payload.event_context` — they are not stored in state.
 
 ## Asana API and Error Handling
 
@@ -206,14 +206,14 @@ The SDK persists state automatically when events are emitted. On the next invoca
 - **Workspace**: `event.payload.connection_data.org_id`
 - **Project (sync unit)**: `event.payload.event_context.external_sync_unit_id`
 - **Pagination**: All list endpoints use offset-based pagination with page size 100
-- **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker emits a `*_DELAY` event so the platform reschedules. Metadata extraction emits `MetadataExtractionDelayed`; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
+- **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker returns `{ status: 'delay', delaySeconds }` so the SDK sends the phase delay event and the platform reschedules; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
 - **Retries**: The HTTP client retries up to 3 times for network errors and 5xx responses, with exponential backoff (2s, 4s, 8s). 4xx errors, including 429, are not retried.
 
 ## Development Workflow
 
 ### Prerequisites
 
-Node.js 18+, [DevRev CLI](https://developer.devrev.ai/snap-in-development/references/cli-install), [jq](https://stedolan.github.io/jq/download/), [ngrok](https://ngrok.com/download) (for local development).
+Node.js 20+, [DevRev CLI](https://developer.devrev.ai/snap-in-development/references/cli-install), [jq](https://stedolan.github.io/jq/download/), [ngrok](https://ngrok.com/download) (for local development).
 
 ### Commands
 
@@ -226,7 +226,7 @@ All commands run from the `code/` directory unless otherwise noted.
 | `npm run package` | Build and create `build.tar.gz` for Lambda deployment |
 | `npm run deploy` | Interactive deploy (local via ngrok or Lambda) |
 | `npm run test` | Run Jest unit tests |
-| `npm run test:server` | Start local dev server (Express on port 8000 with nodemon) |
+| `npm run test:server` | Start local dev server with `AIRSYNC_LOCAL_DEVELOPMENT=1` (Express on port 8000 with nodemon) |
 | `npm run lint` / `npm run lint:fix` | ESLint |
 | `npm run api-gen` | Regenerate Asana API client from OpenAPI spec |
 | `npm run create-keyring` | Create OAuth developer keyring in DevRev |
@@ -244,22 +244,22 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 ## Testing
 
-- **Unit tests**: 19 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
+- **Unit tests**: 20 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
-- **Local integration testing**: Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
+- **Local integration testing**: Set `AIRSYNC_LOCAL_DEVELOPMENT=1` to enable SDK local logging and artifact copies. The local runner has a direct `@devrev/typescript-sdk` development dependency. Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
 
 ## Important Constraints and Gotchas
 
-- **Lambda timeout**: Max 15 minutes. The SDK sends a soft timeout at ~10-13 minutes. Workers must handle `onTimeout` gracefully by saving state and emitting a progress/error event.
+- **Lambda timeout**: Max 15 minutes. The SDK sends a soft timeout at ~10-13 minutes. Workers return progress on timeout; the SDK saves state and supplies the default timeout response.
 - **Subtask depth**: Limited to 2 levels (`MAX_SUBTASK_DEPTH`) due to DevRev link depth constraints. Tasks → subtasks → sub-subtasks.
 - **Attachment URLs expire**: Asana `download_url` values expire in ~2 minutes. The attachments worker fetches a fresh URL via `getAttachment(gid)` right before each download; the URL stored at data extraction time is never used. Batch size is 10 to avoid exhausting Lambda sockets/DNS.
 - **Pagination tokens expire**: A saved `offset` can be rejected with 400 `pagination token has expired` on a later invocation. `fetchPageRecoveringExpiredOffset` in `data-helpers.ts` resets the listing to the first page instead of failing.
-- **Comments are create-only**: The Asana API does not support updating or deleting comments (stories). Loading creates new comments but updates are no-op.
+- **Comment loading**: Creates and updates comments through the stories API; failed updates return per-item errors.
 - **Generated code**: `code/src/asana/api-client/generated/` is auto-generated from the Asana OpenAPI spec. Do not edit manually; regenerate with `npm run api-gen`.
-- **429 handling**: Rate limit responses are never retried in-process. Metadata, data, attachment and loading phases emit a `*_DELAY` event via `handleExtractionError`/`handleLoadingError`. External-sync-unit extraction has no delay event (SDK limitation), so a 429 there fails the phase and the user retries later.
-- **Metadata timeout**: The metadata worker's `onTimeout` emits `MetadataExtractionProgress`. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
+- **429 handling**: Rate limit responses are never retried in-process. Metadata, data, attachment and loading phases return delay results derived from `handleExtractionError`/`handleLoadingError`; the SDK emits the phase delay event. External-sync-unit extraction has no delay event (SDK limitation), so a 429 there fails the phase and the user retries later.
+- **Metadata timeout**: The SDK returns metadata progress on soft timeout. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
 - **State size**: Snap-in state must be smaller than 1 MB (~500,000 characters).
-- **Single response**: Each worker invocation must emit exactly one response event to AirSync.
+- **Single response**: Each worker invocation returns one `TaskResult`; the SDK sends its response to AirSync.
 
 ## Related Documentation
 
@@ -269,9 +269,9 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 - `docs/tdd.md` — Technical design document (data mapping, API endpoints, limitations)
 - `README.md` — Setup, authentication (PAT/OAuth), deployment instructions
 
-### `@devrev/ts-adaas` SDK
+### `@devrev/airsync-sdk` SDK
 
-- **npm**: https://www.npmjs.com/package/@devrev/ts-adaas
+- **npm**: https://www.npmjs.com/package/@devrev/airsync-sdk
 - **GitHub** (source, types, tests, examples): https://github.com/devrev/adaas-sdk
 
 ### Asana API
@@ -293,11 +293,11 @@ All subpages (each has a "Copy Markdown" button for easy reference):
 
 **Extraction (forward sync):**
 
-- `/extraction-phases` — Extraction lifecycle overview, `processTask`/`spawn` usage, state management across invocations, four phases (ESU, metadata, data, attachments).
-- `/external-sync-units-extraction` — ESU phase: listing sync units with id/name/description/item_count, event types (`EXTRACTION_EXTERNAL_SYNC_UNITS_START`/`DONE`/`ERROR`), initial sync only.
+- `/extraction-phases` — Extraction lifecycle overview, `processExtractionTask`/`spawn` usage, state management across invocations, four phases (ESU, metadata, data, attachments).
+- `/external-sync-units-extraction` — ESU phase: listing sync units with id/name/description/item_count, event types (`START_EXTRACTING_EXTERNAL_SYNC_UNITS`, `EXTERNAL_SYNC_UNIT_EXTRACTION_DONE`, `EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR`), initial sync only.
 - `/metadata-extraction` — `external_domain_metadata.json` schema: record types, categories, fields (text/enum/reference/rich_text/timestamp/etc.), collections, stage diagrams, custom link types, field attributes (`is_read_only`/`is_required`/etc.), validation with chef-cli, `infer-metadata` command.
 - `/initial-domain-mapping` — Field mapping between external and DevRev schemas via Chef UI or MCP; category-based defaults, multiple mapping options, blueprint apply/merge workflow, custom object mapping.
-- `/data-extraction` — Data extraction phase: event types (`EXTRACTION_DATA_START`/`CONTINUE`/`PROGRESS`/`DELAY`/`DONE`/`ERROR`), repos and `push()`, normalization rules (timestamps, nulls, references, multiselect), state handling, Lambda timeout (soft 10min / hard 13min), time-scoped syncs with `extract_from` and `reset_extract_from`, special error events (`USER_DELETED`/`EXTERNAL_SYNC_UNIT_DEACTIVATED`/`DELETED`).
+- `/data-extraction` — Data extraction phase: event types (`START_EXTRACTING_DATA`, `CONTINUE_EXTRACTING_DATA`, `DATA_EXTRACTION_PROGRESS`, `DATA_EXTRACTION_DELAYED`, `DATA_EXTRACTION_DONE`, `DATA_EXTRACTION_ERROR`), repos and `push()`, normalization rules (timestamps, nulls, references, multiselect), state handling, Lambda timeout (soft 10min / hard 13min), time-scoped syncs with `extract_from` and `extract_to`, special error events (`USER_DELETED`/`EXTERNAL_SYNC_UNIT_DEACTIVATED`/`DELETED`).
 - `/extract-attachments` — Attachments extraction phase: event types, `streamAttachments` API with `stream` function and `batchSize`, default vs custom implementation.
 - `/customize-attachment-processing` — Custom attachment processing: reducer/iterator pattern for URL refresh, grouping, re-fetching expired URLs, `processAttachment` API.
 

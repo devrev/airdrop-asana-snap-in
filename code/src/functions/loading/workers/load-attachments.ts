@@ -1,5 +1,5 @@
-import type { ExternalSystemAttachment, ExternalSystemItemLoadingParams, ExternalSystemItemLoadingResponse } from '@devrev/ts-adaas';
-import { LoaderEventType, processTask } from '@devrev/ts-adaas';
+import type { ExternalSystemAttachment, ExternalSystemItemLoadingParams, ExternalSystemItemLoadingResponse } from '@devrev/airsync-sdk';
+import { processLoadingTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { handleLoadingError, resolveExternalId } from '@utils/loading-helpers';
@@ -68,7 +68,7 @@ async function createAttachment({
 
     if (!parentGid) {
       console.warn(`Cannot resolve parent for attachment "${item.file_name}". parentReferenceId=${item.parent_reference_id}, parentId=${item.parent_id}`);
-      return { error: `Cannot resolve parent for attachment ${item.file_name}, parentReferenceId=${item.parent_reference_id}, parentId=${item.parent_id}` };
+      return { status: 'error', error: { message: `Cannot resolve parent for attachment ${item.file_name}, parentReferenceId=${item.parent_reference_id}, parentId=${item.parent_id}` } };
     }
 
     const { default: axios } = await import('axios');
@@ -82,34 +82,20 @@ async function createAttachment({
       await reparentAttachmentToComment(asanaClient, commentGid, attachmentGid, item.file_name);
     }
 
-    return { id: attachmentGid };
+    if (!attachmentGid) return { status: 'error', error: { message: `Failed to create attachment — no GID returned. fileName=${item.file_name}` } };
+
+    return { status: 'success', id: attachmentGid };
   } catch (error) {
     console.error(`Failed to load attachment "${item.file_name}" to parent ${item.parent_reference_id || item.parent_id}: ${serializeError(error)}`);
     return handleLoadingError(error);
   }
 }
 
-processTask<LoaderState>({
+processLoadingTask<LoaderState>({
   task: async ({ adapter }) => {
-    try {
-      console.log('Starting attachment loading.');
-      await adapter.loadAttachments({ create: createAttachment });
-      console.log('Attachment loading completed.');
-      await adapter.emit(LoaderEventType.AttachmentLoadingDone);
-    } catch (error) {
-      const result = handleLoadingError(error);
-      if (result.delay) {
-        console.warn(`Rate limited during attachment loading. Delaying for ${result.delay}s.`);
-        await adapter.emit(LoaderEventType.AttachmentLoadingDelayed, { delay: result.delay });
-      } else {
-        console.error(`Attachment loading failed: ${result.error}`);
-        await adapter.emit(LoaderEventType.AttachmentLoadingError, {
-          error: { message: result.error ?? 'Unknown error during attachment loading' },
-        });
-      }
-    }
-  },
-  onTimeout: async ({ adapter }) => {
-    await adapter.emit(LoaderEventType.AttachmentLoadingProgress);
+    console.log('Starting attachment loading.');
+    const result = await adapter.loadAttachments({ create: createAttachment });
+    console.log('Attachment loading completed.');
+    return result;
   },
 });

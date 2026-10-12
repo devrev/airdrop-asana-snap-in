@@ -248,7 +248,7 @@ For time-scoped and incremental syncs, tasks are filtered using the `modified_si
 
 The `AsanaClient` uses `axios-retry` (3 attempts, exponential backoff 2s, 4s, 8s) for network errors and 5xx responses only. 429s are never retried in-process: sleeping on `Retry-After` inside the worker could run it into the Lambda hard timeout.
 
-Instead, `handleExtractionError`/`handleLoadingError` turn a 429 into `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker emits a `*_DELAYED` event so the platform reschedules the phase. This covers metadata (`MetadataExtractionDelayed`), data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no `*_DELAYED` event, so a 429 there fails the phase with a "retry in N seconds" message.
+`handleExtractionError` supplies a delay value and `handleLoadingError` returns `{ status: 'delay', delaySeconds }` for a 429 (Asana's `Retry-After`, or 60s if missing). Workers return a delay result so `@devrev/airsync-sdk` emits the phase delay event and the platform reschedules. This covers metadata, data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no `*_DELAYED` event, so a 429 there fails the phase with a "retry in N seconds" message.
 
 ### 2.4.2 Pagination
 
@@ -305,7 +305,7 @@ During the metadata extraction phase, the connector:
    - `open` (not completed) — maps to state `open`
    - `completed` (completed) — maps to state `closed` (with `is_end_state: true`)
 
-If fetching custom fields or sections hits a 429, the worker emits `MetadataExtractionDelayed` with the `Retry-After` value (60s fallback). Any other failure emits `MetadataExtractionError`. On soft timeout, `onTimeout` emits `MetadataExtractionProgress`. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
+`getEnrichmentFailure` returns a `TaskResult` to the worker: delay with the `Retry-After` value (60s fallback) for 429, error with an error record for other failures, or null so enrichment continues. The worker returns that result. The SDK sends metadata progress on soft timeout. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
 
 ## 2.6 Data Extraction Architecture
 
@@ -371,7 +371,7 @@ Loading (DevRev -> Asana) is implemented for tasks, subtasks, comments, links, a
 | :---------- | :----- | :----- | :------------------------------------------------------------------------------------------------------------ |
 | Task        | Yes    | Yes    | Fields: name, assignee, html_notes, due_on, start_on, completed. Section and tags applied after create/update. |
 | Subtask     | Yes    | Yes    | Same fields as task. Created via `POST /tasks/{parentGid}/subtasks`. Parent resolved via mapper service.       |
-| Comment     | Yes    | No-op  | Create via `POST /tasks/{taskGid}/stories`. Updates return error (Asana API limitation).                       |
+| Comment     | Yes    | Yes    | Create via `POST /tasks/{taskGid}/stories`; update via `PUT /stories/{storyGid}`.                       |
 | Link        | Yes    | Yes    | `is_dependent_on` via `addDependencies`, `is_parent_of` via `setParent`. `is_duplicate_of`/`is_related_to` skipped. |
 | Attachment  | Yes    | N/A    | Downloaded from DevRev artifact URL and uploaded as file attachment via multipart form.                        |
 
@@ -393,6 +393,16 @@ Loading (DevRev -> Asana) is implemented for tasks, subtasks, comments, links, a
 
 Section assignment and tag application are performed after the primary task/subtask create/update. If these secondary operations fail, the task is still reported as successfully created/updated, but a warning is logged with the task GID and DevRev ID for traceability. This prevents a tag assignment failure from blocking the entire task creation.
 
-### Comment Update No-op
+### Comment Updates
 
-The `updateComment` handler returns success (`{}`) without performing any action, because Asana's API does not support updating or deleting stories. This is intentional — the task still appears as successfully loaded.
+The `updateComment` handler resolves the story GID and updates its text through `PUT /stories/{storyGid}`. It returns `{ status: 'success', id, modifiedDate }` on success or a delay/error result on failure.
+
+## SDK worker contract
+
+The connector requires Node.js 20+ and `@devrev/airsync-sdk`. Extraction workers register with `processExtractionTask`; loading workers use `processLoadingTask`. All return a `TaskResult`; attachment streaming and loader callbacks return status unions with `delaySeconds` or error records. Workers return SDK streaming/loading results so delays and failures reach AirSync. The SDK owns response emission, timeout defaults, and separate SDK state. Existing ESU repo configuration is retained.
+
+Mapper lookups return an unwrapped response or null. `resolveExternalId` logs and returns null when missing or failed; extraction keeps unmapped attachments and keeps files on lookup failures. The sync window remains `extract_from`/`extract_to`.
+
+`npm run test:server` sets `AIRSYNC_LOCAL_DEVELOPMENT=1` for the local test server. Its direct `@devrev/typescript-sdk` development dependency provides snap-in runner types.
+
+Upgrade between runs after v1 workers finish. Once v2 persists state, rollback requires a verified saved v1 state with the v1 connector, or explicit reset/reinitialization and reimport; draining alone does not restore v1 compatibility.
