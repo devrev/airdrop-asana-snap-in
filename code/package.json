@@ -62,7 +62,10 @@
     "protobufjs": "7.6.6"
   },
   "overrides": {
-    "shell-quote": "^1.11.0"
+    "shell-quote": "^1.11.0",
+    "get-uri": {
+      "basic-ftp": "^6.2.1"
+    }
   },
   "engines": {
     "node": ">=20"

@@ -410,3 +410,9 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 ### Migration integration verification
 
 `code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; and real loader create/update/429/error outcomes. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.
+
+## Dependency security
+
+Development tooling uses patched `handlebars` 4.7.10 and `qs` 6.16.1 through the lockfile. The OpenAPI generator proxy chain still requests `basic-ftp` 5.x, so a scoped `get-uri` override selects 6.2.1+ (currently locked to 6.2.3) to fix FTP response parsing ReDoS. The replacement preserves the client API used by `get-uri`; FTP download and conditional-cache handling were verified against a local FTP server. Remove the override once the parent dependency accepts a patched release.
+
+Use `snyk test --dev` to scan development and production dependencies, `snyk test` for production only, and `snyk code test` for source analysis. Dependency findings without upstream patches remain visible; no security findings are ignored.
