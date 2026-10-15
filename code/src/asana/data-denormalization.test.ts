@@ -50,10 +50,9 @@ describe('denormalizeTask', () => {
     expect(result.createRequest.data?.assignee).toBe('asana-user-1');
   });
 
-  it('should set assignee to null when unresolvable', async () => {
+  it('should fail an unresolved assignee instead of clearing it', async () => {
     const data = { assignee: 'unknown-user' };
-    const result = await denormalizeTask(data, resolveId);
-    expect(result.createRequest.data?.assignee).toBeNull();
+    await expect(denormalizeTask(data, resolveId)).rejects.toThrow('Cannot resolve task assignee');
   });
 
   it('should convert ISO timestamp to YYYY-MM-DD for dates', async () => {
@@ -91,9 +90,26 @@ describe('denormalizeTask', () => {
 
   it('should handle empty data', async () => {
     const result = await denormalizeTask({}, resolveId);
-    expect(result.createRequest.data?.assignee).toBeNull();
+    expect(result.updateRequest.data?.assignee).toBeUndefined();
+    expect(result.updateRequest.data?.due_on).toBeUndefined();
+    expect(result.updateRequest.data?.start_on).toBeUndefined();
     expect(result.sectionGid).toBeNull();
     expect(result.tagGids).toEqual([]);
+  });
+
+  it.each([null, []])('should clear an explicitly empty assignee %p', async (assignee) => {
+    const result = await denormalizeTask({ assignee }, resolveId);
+    expect(result.updateRequest.data?.assignee).toBeNull();
+  });
+
+  it('should preserve omitted fields in a title-only update', async () => {
+    const result = await denormalizeTask({ name: 'Updated title' }, resolveId);
+    expect(JSON.parse(JSON.stringify(result.updateRequest))).toEqual({ data: { name: 'Updated title' } });
+  });
+
+  it.each([null, []])('should clear an explicitly empty description %p', async (description) => {
+    const result = await denormalizeTask({ description }, resolveId);
+    expect(result.updateRequest.data?.notes).toBe('');
   });
 
   it('should produce identical createRequest and updateRequest', async () => {

@@ -23,6 +23,7 @@ export async function denormalizeTask(
     const firstOwner = Array.isArray(ownedByIds) ? ownedByIds[0] : ownedByIds;
     if (firstOwner) {
       assignee = await resolveRef(firstOwner, resolveId);
+      if (!assignee) throw new Error('Cannot resolve task assignee');
     }
   }
 
@@ -49,11 +50,12 @@ export async function denormalizeTask(
 
   const taskData = {
     name: (data.name as string) ?? undefined,
-    ...(htmlNotes ? { html_notes: htmlNotes } : {}),
-    ...(plainNotes ? { notes: plainNotes } : {}),
-    assignee: assignee,
-    due_on: toDateOnly(data.due_date as string | null),
-    start_on: toDateOnly(data.start_date as string | null),
+    ...(data.description !== undefined
+      ? hasMentions ? { html_notes: htmlNotes ?? undefined } : { notes: plainNotes ?? '' }
+      : {}),
+    assignee: data.assignee === undefined ? undefined : assignee,
+    due_on: data.due_date === undefined ? undefined : toDateOnly(data.due_date as string | null),
+    start_on: data.start_date === undefined ? undefined : toDateOnly(data.start_date as string | null),
     completed: data.completed as boolean | undefined,
   };
 

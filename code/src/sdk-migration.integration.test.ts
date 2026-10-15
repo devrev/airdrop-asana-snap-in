@@ -117,8 +117,8 @@ describe('SDK v2 migration over HTTP', () => {
     }
   }
 
-  function serveLoaderFile() {
-    const item = { id: { devrev: 'task-devrev' }, data: { name: 'Migrated task' } };
+  function serveLoaderFile(data: Record<string, unknown> = { name: 'Migrated task' }) {
+    const item = { id: { devrev: 'task-devrev' }, data };
     server.setRoute({ method: 'GET', path: '/internal/airdrop.artifacts.download-url', status: 200,
       body: { download_url: `${server.baseUrl}/loader-file` } });
     server.setRoute({ method: 'GET', path: '/loader-file', status: 200,
@@ -238,6 +238,33 @@ describe('SDK v2 migration over HTTP', () => {
       expect(state?.sdkState.fromDevRev).toMatchObject({ filesToLoad: [{ lineToProcess: 1, completed: true }] });
     }
   );
+
+  it.each([[404, 'POST', '/api/1.0/tasks'], [200, 'PUT', '/api/1.0/tasks/12345']])(
+    'preserves reverse assignee and dates through the SDK for mapper HTTP %i', async (status, method, route) => {
+      serveLoaderFile({ name: 'Assigned task', assignee: { external: '67890' },
+        due_date: '2031-04-20T00:00:00Z', start_date: '2031-04-19T00:00:00Z' });
+      server.setRoute({ method: 'GET', path: targetMapperPath, status,
+        body: { sync_mapper_record: { id: 'mapper-1', external_ids: ['12345'] } } });
+      server.setRoute({ method, path: route, status: 200,
+        body: { data: { gid: '12345', modified_at: '2026-10-15T07:00:00Z' } } });
+      const { callback } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+      expect(callback.event_type).toBe('DATA_LOADING_DONE');
+      expect(server.getRequests(method, route)[0].body).toMatchObject({ data: {
+        assignee: '67890', due_on: '2031-04-20', start_on: '2031-04-19',
+      } });
+    }
+  );
+
+  it('does not clear unmapped fields during a reverse title update', async () => {
+    serveLoaderFile({ name: 'Title only' });
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 200,
+      body: { sync_mapper_record: { id: 'mapper-1', external_ids: ['12345'] } } });
+    server.setRoute({ method: 'PUT', path: '/api/1.0/tasks/12345', status: 200,
+      body: { data: { gid: '12345' } } });
+    const { callback } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+    expect(callback.event_type).toBe('DATA_LOADING_DONE');
+    expect(server.getRequests('PUT', '/api/1.0/tasks/12345')[0].body).toEqual({ data: { name: 'Title only' } });
+  });
 
   it('propagates a loader callback rate limit and retains the item cursor', async () => {
     serveLoaderFile();

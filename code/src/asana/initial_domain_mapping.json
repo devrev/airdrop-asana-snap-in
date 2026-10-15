@@ -216,6 +216,14 @@
                     "transformation_method": "use_directly"
                   }
                 },
+                "modified_by_id": {
+                  "forward": true,
+                  "primary_external_field": "created_by",
+                  "reverse": false,
+                  "transformation_method": {
+                    "transformation_method": "use_directly"
+                  }
+                },
                 "item_url_field": {
                   "forward": true,
                   "primary_external_field": "item_url_field",
@@ -410,6 +418,14 @@
                   }
                 },
                 "created_by_id": {
+                  "forward": true,
+                  "primary_external_field": "created_by",
+                  "reverse": false,
+                  "transformation_method": {
+                    "transformation_method": "use_directly"
+                  }
+                },
+                "modified_by_id": {
                   "forward": true,
                   "primary_external_field": "created_by",
                   "reverse": false,
