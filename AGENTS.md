@@ -232,6 +232,10 @@ All commands run from the `code/` directory unless otherwise noted.
 | `npm run create-keyring` | Create OAuth developer keyring in DevRev |
 | `npm run cleanup` | Remove snap-in packages/versions |
 
+### Dependency security
+
+Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
+
 ### Path Aliases
 
 The project uses TypeScript path aliases configured in `tsconfig.json`:
