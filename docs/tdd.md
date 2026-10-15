@@ -74,7 +74,6 @@ The connector performs a runtime check during ESU extraction by calling `GET /us
 | `target_close_date`       | `due_date` (due_on / due_at)       | `use_directly`                                       | Yes     | Yes     |
 | `target_start_date`       | `start_date` (start_on / start_at) | `use_directly`                                       | Yes     | Yes     |
 | `created_by_id`           | `created_by`                       | `use_directly`                                       | Yes     | No      |
-| `modified_by_id`          | `created_by` (creator proxy)       | `use_directly`                                       | Yes     | No      |
 | `item_url_field`          | `permalink_url`                    | `use_directly`                                       | Yes     | No      |
 | `priority`                | --                                 | `use_fixed_value` (P2)                               | Yes     | No      |
 | `reported_by_ids`         | `followers`                        | `use_directly`                                       | Yes     | No      |
@@ -92,10 +91,6 @@ The connector performs a runtime check during ESU extraction by calling `GET /us
 
 > **Note:** Fields marked "(metadata only)" are defined in `external_domain_metadata.json` and extracted into normalized data but do not have explicit entries in `initial_domain_mapping.json`. They are available for platform-level mapping. Bidirectional fields (`title`, `body`, `owned_by_ids`, `stage`, `target_close_date`, `target_start_date`, `tags`, custom fields) are configured in `initial_domain_mapping.json`.
 
-Asana does not expose the task's last modifying user. Tasks and subtasks use the creator as the `modified_by_id` proxy so updates do not remain staged for an unresolved modifier. This does not identify the actual editor. Existing imports require a scoped recipe update to adopt this mapping. DevRev issues require an owner, so an unassigned Asana task cannot clear its DevRev owner.
-
-Reverse task/subtask payloads preserve omitted assignee, date and description fields. Explicit null/empty values clear those fields in Asana; a nonempty assignee that cannot be resolved fails the item. SDK HTTP integration tests verify assignees/dates on create and update, and preservation during title-only updates.
-
 ### 2.2.3 Subtask Field Mapping (subtasks -> issue)
 
 | DevRev Field              | Asana Field                        | Transformation                | Forward | Reverse |
@@ -107,7 +102,6 @@ Reverse task/subtask payloads preserve omitted assignee, date and description fi
 | `target_close_date`       | `due_date`                         | `use_directly`                | Yes     | Yes     |
 | `target_start_date`       | `start_date`                       | `use_directly`                | Yes     | Yes     |
 | `created_by_id`           | `created_by`                       | `use_directly`                | Yes     | No      |
-| `modified_by_id`          | `created_by` (creator proxy)       | `use_directly`                | Yes     | No      |
 | `item_url_field`          | `permalink_url`                    | `use_directly`                | Yes     | No      |
 | `priority`                | --                                 | `use_fixed_value` (P2)        | Yes     | No      |
 | `reported_by_ids`         | `followers`                        | `use_directly`                | Yes     | No      |
