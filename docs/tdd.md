@@ -397,6 +397,10 @@ Section assignment and tag application are performed after the primary task/subt
 
 The `updateComment` handler resolves the story GID and updates its text through `PUT /stories/{storyGid}`. It returns `{ status: 'success', id, modifiedDate }` on success or a delay/error result on failure.
 
+## CI coverage reporting
+
+Jest uses the V8 coverage provider to generate `code/coverage/lcov.info` with resolvable source paths and the configured 80% global coverage thresholds. The default Babel provider with the current ts-jest version produces malformed paths containing `file:` URLs. After tests pass, `.github/workflows/ci.yml` uploads the report through `coverallsapp/github-action@v2` on pull requests and pushes to `main`. The action uses `GITHUB_TOKEN` and `base-path: code` to resolve source paths relative to the repository. The README Coveralls badge tracks `main`.
+
 ## SDK worker contract
 
 The connector requires Node.js 20+ and `@devrev/airsync-sdk`. Extraction workers register with `processExtractionTask`; loading workers use `processLoadingTask`. All return a `TaskResult`; attachment streaming and loader callbacks return status unions with `delaySeconds` or error records. Attachment extraction and both loading workers return SDK streaming/loading calls directly, preserving progress, delays and failures without redundant start/completion logs. The SDK owns response emission, timeout defaults, and separate SDK state. Existing ESU repo configuration is retained.
