@@ -46,7 +46,13 @@ import {
 } from '../types';
 
 const ASANA_API_BASE_URL = 'https://app.asana.com/api/1.0';
+const ASANA_API_PATH = '/api/1.0';
 const ASANA_PAGE_LIMIT = 100;
+
+function getAsanaApiBaseUrl(): string {
+  const mockServerUrl = process.env.MOCK_SERVER_URL?.replace(/\/+$/, '');
+  return mockServerUrl ? `${mockServerUrl}${ASANA_API_PATH}` : ASANA_API_BASE_URL;
+}
 
 const HTTP_RETRIES = 3;
 
@@ -165,7 +171,7 @@ export class AsanaClient {
     this.projectId = event.payload.event_context.external_sync_unit_id;
 
     const axiosInstance = axios.create({
-      baseURL: ASANA_API_BASE_URL,
+      baseURL: getAsanaApiBaseUrl(),
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },

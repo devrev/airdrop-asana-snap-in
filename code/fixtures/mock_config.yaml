@@ -1,0 +1,106 @@
+# Offline synthetic Asana data for fixture extraction.
+# The connector sends requests to /api/1.0; strip that version prefix so the mock's
+# routes match the paths below. No proxy is configured, so no requests reach Asana.
+api:
+  type: asana
+
+strip_path_prefix: /api/1.0
+
+pagination:
+  # Cursor mode emits an opaque next_page.offset token in Asana's response shape.
+  # The connector passes that token back as the offset query parameter.
+  style: cursor
+  request_params:
+    limit: limit
+    cursor: offset
+  response:
+    wrapper: data
+    next_cursor_field: next_page.offset
+    cursor_encoding: offset_b64
+  defaults:
+    page_size: 100
+  path_template: /{table}
+
+tables:
+  projects:
+    endpoint_path: /workspaces/{id}/projects
+    detail_field: gid
+    total_records: 18
+    fields:
+      gid: "mock_project_{index}"
+      name: "Mock Asana project {index}"
+      resource_type: project
+      privacy_setting:
+        cycle:
+          - public_to_workspace
+          - private
+  tasks:
+    endpoint_path: /projects/{id}/tasks
+    detail_field: gid
+    total_records: 2000
+    fields:
+      gid: uuid
+      name: "Mock Asana task {index}"
+      resource_type: task
+      resource_subtype: default_task
+      created_at: datetime
+      modified_at: datetime
+      completed:
+        static: false
+      num_subtasks:
+        static: 0
+      dependencies:
+        static: []
+      tags:
+        static: []
+      followers:
+        static: []
+      custom_fields:
+        static: []
+      memberships:
+        static: []
+  users:
+    total_records: 2000
+    fields:
+      gid: uuid
+      name: "Mock Asana user {index}"
+      email: email
+  tags:
+    endpoint_path: /workspaces/{id}/tags
+    total_records: 40
+    fields:
+      gid: uuid
+      name: "Mock Asana tag {index}"
+      color: blue
+      notes: "Synthetic tag {index}"
+      created_at: datetime
+  teams:
+    endpoint_path: /workspaces/{id}/teams
+    total_records: 1
+    fields:
+      gid: uuid
+      name: "Mock Asana team {index}"
+      description: "Synthetic team {index}"
+
+static_endpoints:
+  - path: /users/me/workspace_memberships
+    method: GET
+    body: '{"data":[]}'
+  - path: /projects/*/task_counts
+    method: GET
+    body: '{"data":{"num_tasks":12}}'
+  - path: /projects/*/custom_field_settings
+    method: GET
+    body: '{"data":[]}'
+  - path: /projects/*/sections
+    method: GET
+    body: '{"data":[{"gid":"mock-section-open","name":"To do"},{"gid":"mock-section-done","name":"Done"}]}'
+  - path: /memberships
+    method: GET
+    body: '{"data":[]}'
+  - path: /teams/*/team_memberships
+    method: GET
+    body: '{"data":[]}'
+  - path: /tasks/*/stories
+    method: GET
+    body: '{"data":[]}'

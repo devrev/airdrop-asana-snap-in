@@ -1,0 +1,21 @@
+version: 1
+
+connector:
+  entrypoint: ../../dist/index.js
+  function: extraction
+
+stages:
+  - external_sync_unit_extraction
+
+connection_data:
+  org_id: "${ASANA_WORKSPACE_ID}"
+  org_name: Asana framework integration test
+  key: "${ASANA_PAT}"
+  key_type: pat
+
+event_context:
+  external_sync_unit_id: "${ASANA_PROJECT_ID}"
+  external_sync_unit_name: Asana framework integration test project
+  mode: INITIAL
+
+wait_for_delays: true
