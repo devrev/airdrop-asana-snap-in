@@ -1,8 +1,8 @@
-import { spawn } from '@devrev/ts-adaas';
+import { spawn } from '@devrev/airsync-sdk';
 
 import run, { initialLoaderState } from './index';
 
-jest.mock('@devrev/ts-adaas', () => ({
+jest.mock('@devrev/airsync-sdk', () => ({
   spawn: jest.fn().mockResolvedValue(undefined),
 }));
 

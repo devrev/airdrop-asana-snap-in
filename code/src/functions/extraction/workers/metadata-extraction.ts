@@ -1,4 +1,4 @@
-import { ExternalDomainMetadata, ExtractorEventType, processTask, WorkerAdapter } from '@devrev/ts-adaas';
+import { ExternalDomainMetadata, processExtractionTask, TaskResult } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
@@ -12,28 +12,24 @@ import {
 
 import type { ExtractorState } from '../index';
 
-/** Emit a delay or error for a failed enrichment step. Returns true if an event was emitted. */
-async function emitEnrichmentFailure(
-  adapter: WorkerAdapter<ExtractorState>,
+function getEnrichmentFailure(
   step: string,
   result: ExtractListResponse | void
-): Promise<boolean> {
+): TaskResult | null {
   if (result?.delay) {
     console.warn(`Rate limited while extracting metadata ${step}. Delaying for ${result.delay}s.`);
-    await adapter.emit(ExtractorEventType.MetadataExtractionDelayed, { delay: result.delay });
-    return true;
+    return { status: 'delay', delaySeconds: result.delay };
   }
 
   if (result?.error) {
     console.error(result.error.message);
-    await adapter.emit(ExtractorEventType.MetadataExtractionError, { error: result.error });
-    return true;
+    return { status: 'error', error: result.error };
   }
 
-  return false;
+  return null;
 }
 
-processTask<ExtractorState>({
+processExtractionTask<ExtractorState>({
   task: async ({ adapter }) => {
     adapter.initializeRepos([{ itemType: ItemType.EXTERNAL_DOMAIN_METADATA }]);
 
@@ -41,22 +37,16 @@ processTask<ExtractorState>({
     const metadata: ExternalDomainMetadata = structuredClone(baseExternalDomainMetadata) as ExternalDomainMetadata;
 
     const customFieldsResult = await enrichMetadataWithCustomFields(metadata, asanaClient);
-    if (await emitEnrichmentFailure(adapter, 'custom fields', customFieldsResult)) {
-      return;
-    }
+    const customFieldsFailure = getEnrichmentFailure('custom fields', customFieldsResult);
+    if (customFieldsFailure) return customFieldsFailure;
 
     const sectionsResult = await enrichMetadataWithSections(metadata, asanaClient);
-    if (await emitEnrichmentFailure(adapter, 'sections', sectionsResult)) {
-      return;
-    }
+    const sectionsFailure = getEnrichmentFailure('sections', sectionsResult);
+    if (sectionsFailure) return sectionsFailure;
 
     enrichMetadataWithSubtaskStages(metadata);
 
     await adapter.getRepo(ItemType.EXTERNAL_DOMAIN_METADATA)?.push([metadata]);
-    await adapter.emit(ExtractorEventType.MetadataExtractionDone);
-  },
-  onTimeout: async ({ adapter }) => {
-    // The phase keeps no state, so CONTINUE_EXTRACTING_METADATA just rebuilds the metadata from scratch.
-    await adapter.emit(ExtractorEventType.MetadataExtractionProgress);
+    return { status: 'success' };
   },
 });

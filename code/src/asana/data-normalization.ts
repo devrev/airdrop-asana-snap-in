@@ -1,4 +1,4 @@
-import { NormalizedAttachment, NormalizedItem } from '@devrev/ts-adaas';
+import { NormalizedAttachment, NormalizedItem } from '@devrev/airsync-sdk';
 
 import { buildExternalAttachmentLinks } from '@utils/attachment-helpers';
 import { CustomFieldValue, extractCustomFields, extractSectionFromMemberships, toTimestamp } from '@utils/field-extraction-helpers';

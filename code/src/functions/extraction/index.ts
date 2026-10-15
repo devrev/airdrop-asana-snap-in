@@ -1,4 +1,4 @@
-import { AirdropEvent, spawn } from '@devrev/ts-adaas';
+import { AirSyncEvent, spawn } from '@devrev/airsync-sdk';
 
 import initialDomainMapping from '@asana/initial_domain_mapping.json';
 
@@ -70,7 +70,7 @@ export const initialState: ExtractorState = {
   access_rules: { completed: false, total: 0 },
 };
 
-const run = async (events: AirdropEvent[]): Promise<void> => {
+const run = async (events: AirSyncEvent[]): Promise<void> => {
   for (const event of events) {
     await spawn<ExtractorState>({
       event,

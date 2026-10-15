@@ -1,4 +1,5 @@
-import { axios, EventType, SyncMode } from '@devrev/ts-adaas';
+import { EventType, SyncMode } from '@devrev/airsync-sdk';
+import axios from 'axios';
 
 import { ItemType, LinkType, MAX_SUBTASK_DEPTH } from '@asana/constants';
 
@@ -609,7 +610,7 @@ describe('extractTaskWithSubtasks', () => {
     } as any;
   }
 
-  // mappedGids: attachment GIDs that already have an artifact mapping; anything else 404s.
+  // mappedGids: attachment GIDs that already have an artifact mapping; anything else has no mapping.
   function createMockAdapter(options?: { mappedGids?: string[] }) {
     const mapped = new Set(options?.mappedGids ?? []);
     return {
@@ -620,8 +621,8 @@ describe('extractTaskWithSubtasks', () => {
       mappers: {
         getByExternalId: jest.fn().mockImplementation(({ external_id }: { external_id: string }) =>
           mapped.has(external_id)
-            ? Promise.resolve({ data: { sync_mapper_record: { id: `smr-${external_id}` } } })
-            : Promise.resolve({ data: {} })
+            ? Promise.resolve({ sync_mapper_record: { id: `smr-${external_id}` } })
+            : Promise.resolve(null)
         ),
       },
     } as any;

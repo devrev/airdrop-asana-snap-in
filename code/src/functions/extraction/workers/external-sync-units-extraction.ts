@@ -1,4 +1,4 @@
-import { AirSyncDefaultItemTypes, ExtractorEventType, processTask } from '@devrev/ts-adaas';
+import { AirSyncDefaultItemTypes, processExtractionTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { handleExtractionError } from '@utils/data-helpers';
@@ -7,7 +7,7 @@ import { serializeError } from '@utils/serialize-error';
 
 import type { ExtractorState } from '../index';
 
-processTask<ExtractorState>({
+processExtractionTask<ExtractorState>({
   task: async ({ adapter }) => {
     adapter.initializeRepos([{ itemType: AirSyncDefaultItemTypes.EXTERNAL_SYNC_UNITS }]);
 
@@ -24,8 +24,7 @@ processTask<ExtractorState>({
       const message = delay
         ? `Rate limited by Asana (HTTP 429) while listing projects. Retry in ${delay} seconds.`
         : `Error paginating projects list from Asana: ${serializeError(error)}`;
-      await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionError, { error: { message } });
-      return;
+      return { status: 'error', error: { message } };
     }
     console.log(`Fetched ${asanaProjects.length} projects from Asana workspace. Building sync units...`);
 
@@ -33,13 +32,6 @@ processTask<ExtractorState>({
     console.log(`External sync unit extraction complete. ${externalSyncUnits.length} projects available for sync.`);
 
     await adapter.getRepo(AirSyncDefaultItemTypes.EXTERNAL_SYNC_UNITS)?.push(externalSyncUnits);
-    await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionDone);
-  },
-  onTimeout: async ({ adapter }) => {
-    await adapter.emit(ExtractorEventType.ExternalSyncUnitExtractionError, {
-      error: {
-        message: 'Failed to extract external sync units due to timeout.',
-      },
-    });
+    return { status: 'success' };
   },
 });

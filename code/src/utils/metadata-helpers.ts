@@ -4,7 +4,7 @@ import type {
   Field,
   FieldType,
   StageDiagram,
-} from '@devrev/ts-adaas';
+} from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { CustomFieldType, StageState } from '@asana/constants';

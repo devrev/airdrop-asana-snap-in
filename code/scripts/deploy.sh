@@ -413,7 +413,7 @@ if [ "$DEPLOY_MODE" = "local" ]; then
     echo ""
 
     cd "$CODE_DIR"
-    npm run test:server -- local 2>&1 | tee "$LOG_FILE"
+    AIRSYNC_LOCAL_DEVELOPMENT=1 npm run test:server 2>&1 | tee "$LOG_FILE"
 fi
 
 # LAMBDA DEPLOYMENT

@@ -1,4 +1,4 @@
-import { ExtractorEventType, processTask } from '@devrev/ts-adaas';
+import { processExtractionTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
@@ -8,15 +8,14 @@ import {
   enrichMetadataWithSubtaskStages,
 } from '@utils/metadata-helpers';
 
-jest.mock('@devrev/ts-adaas', () => ({
-  processTask: jest.fn(),
-  ExtractorEventType: jest.requireActual('@devrev/ts-adaas').ExtractorEventType,
+jest.mock('@devrev/airsync-sdk', () => ({
+  processExtractionTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
 jest.mock('@asana/external_domain_metadata.json', () => ({ record_types: [] }), { virtual: true });
 jest.mock('@utils/metadata-helpers');
 
-const mockProcessTask = processTask as jest.Mock;
+const mockProcessTask = processExtractionTask as jest.Mock;
 const mockEnrichCustomFields = enrichMetadataWithCustomFields as jest.Mock;
 const mockEnrichSections = enrichMetadataWithSections as jest.Mock;
 const mockEnrichSubtaskStages = enrichMetadataWithSubtaskStages as jest.Mock;
@@ -25,8 +24,7 @@ const mockEnrichSubtaskStages = enrichMetadataWithSubtaskStages as jest.Mock;
 require('./metadata-extraction');
 
 const captured = mockProcessTask.mock.calls[0][0];
-const taskFn: (params: { adapter: any }) => Promise<void> = captured.task;
-const onTimeoutFn: (params: { adapter: any }) => Promise<void> = captured.onTimeout;
+const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 
 function createMockAdapter() {
   const mockPush = jest.fn();
@@ -37,7 +35,6 @@ function createMockAdapter() {
         event_context: { external_sync_unit_id: 'project-456' },
       },
     },
-    emit: jest.fn(),
     initializeRepos: jest.fn(),
     getRepo: jest.fn().mockReturnValue({ push: mockPush }),
     _mockPush: mockPush,
@@ -61,66 +58,67 @@ describe('metadata-extraction worker', () => {
       expect(adapter.initializeRepos).toHaveBeenCalledWith([{ itemType: ItemType.EXTERNAL_DOMAIN_METADATA }]);
     });
 
-    it('should enrich metadata, push to repo, and emit MetadataExtractionDone', async () => {
+    it('should enrich metadata, push to repo, and return success', async () => {
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
       expect(mockEnrichCustomFields).toHaveBeenCalled();
       expect(mockEnrichSections).toHaveBeenCalled();
       expect(mockEnrichSubtaskStages).toHaveBeenCalled();
       expect(adapter.getRepo).toHaveBeenCalledWith(ItemType.EXTERNAL_DOMAIN_METADATA);
       expect(adapter._mockPush).toHaveBeenCalledWith([expect.any(Object)]);
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionDone);
+      expect(taskResult).toEqual({ status: 'success' });
     });
 
-    it('should emit MetadataExtractionError and return early when enrichMetadataWithCustomFields returns error', async () => {
+    it('should propagate upload failure instead of reporting success', async () => {
+      const adapter = createMockAdapter();
+      adapter._mockPush.mockRejectedValue(new Error('Artifact upload failed'));
+
+      await expect(taskFn({ adapter })).rejects.toThrow('Artifact upload failed');
+    });
+
+    it('should return error and return early when enrichMetadataWithCustomFields returns error', async () => {
       const errorMsg = 'Failed to fetch custom fields';
       mockEnrichCustomFields.mockResolvedValue({ error: { message: errorMsg } });
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionError, {
-        error: { message: errorMsg },
-      });
+      expect(taskResult).toEqual({ status: 'error', error: { message: errorMsg }, });
       expect(mockEnrichSections).not.toHaveBeenCalled();
       expect(mockEnrichSubtaskStages).not.toHaveBeenCalled();
     });
 
-    it('should emit MetadataExtractionError when enrichMetadataWithSections returns error', async () => {
+    it('should return error when enrichMetadataWithSections returns error', async () => {
       const errorMsg = 'Failed to fetch sections';
       mockEnrichSections.mockResolvedValue({ error: { message: errorMsg } });
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
       expect(mockEnrichCustomFields).toHaveBeenCalled();
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionError, {
-        error: { message: errorMsg },
-      });
+      expect(taskResult).toEqual({ status: 'error', error: { message: errorMsg }, });
       expect(mockEnrichSubtaskStages).not.toHaveBeenCalled();
     });
 
-    it('should emit MetadataExtractionDelayed and return early when custom fields are rate limited', async () => {
+    it('should return delay and return early when custom fields are rate limited', async () => {
       mockEnrichCustomFields.mockResolvedValue({ delay: 120 });
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledTimes(1);
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionDelayed, { delay: 120 });
+      expect(taskResult).toEqual({ status: 'delay', delaySeconds: 120 });
       expect(mockEnrichSections).not.toHaveBeenCalled();
       expect(adapter._mockPush).not.toHaveBeenCalled();
     });
 
-    it('should emit MetadataExtractionDelayed when sections are rate limited', async () => {
+    it('should return delay when sections are rate limited', async () => {
       mockEnrichSections.mockResolvedValue({ delay: 45 });
 
       const adapter = createMockAdapter();
-      await taskFn({ adapter });
+      const taskResult = await taskFn({ adapter });
 
-      expect(adapter.emit).toHaveBeenCalledTimes(1);
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionDelayed, { delay: 45 });
+      expect(taskResult).toEqual({ status: 'delay', delaySeconds: 45 });
       expect(mockEnrichSubtaskStages).not.toHaveBeenCalled();
       expect(adapter._mockPush).not.toHaveBeenCalled();
     });
@@ -134,12 +132,8 @@ describe('metadata-extraction worker', () => {
   });
 
   describe('onTimeout', () => {
-    it('should emit MetadataExtractionProgress so the phase is re-invoked', async () => {
-      const adapter = createMockAdapter();
-      await onTimeoutFn({ adapter });
-
-      expect(adapter.emit).toHaveBeenCalledTimes(1);
-      expect(adapter.emit).toHaveBeenCalledWith(ExtractorEventType.MetadataExtractionProgress);
+    it('should use the SDK timeout handler', () => {
+      expect(captured.onTimeout).toBeUndefined();
     });
   });
 });

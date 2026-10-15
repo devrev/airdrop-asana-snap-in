@@ -1,10 +1,10 @@
 import type {
-  AirdropEvent,
+  AirSyncEvent,
   ExternalSystemItem,
   ExternalSystemItemLoadingParams,
   ExternalSystemItemLoadingResponse,
-} from '@devrev/ts-adaas';
-import { LoaderEventType, processTask } from '@devrev/ts-adaas';
+} from '@devrev/airsync-sdk';
+import { processLoadingTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType, LinkType } from '@asana/constants';
@@ -15,7 +15,7 @@ import { serializeError } from '@utils/serialize-error';
 
 import type { LoaderState } from '../index';
 
-function buildResolver(mappers: ExternalSystemItemLoadingParams<ExternalSystemItem>['mappers'], event: AirdropEvent) {
+function buildResolver(mappers: ExternalSystemItemLoadingParams<ExternalSystemItem>['mappers'], event: AirSyncEvent) {
   const syncUnit = event.payload.event_context.sync_unit;
   return (devrevId: string) => resolveExternalId(mappers, syncUnit, devrevId);
 }
@@ -37,7 +37,7 @@ async function createTask({
     const taskGid = response.data?.data?.gid;
     const modifiedAt = response.data?.data?.modified_at;
 
-    if (!taskGid) return { error: `Failed to create task — no GID returned. taskDevrevId=${item.id.devrev}` };
+    if (!taskGid) return { status: 'error', error: { message: `Failed to create task — no GID returned. taskDevrevId=${item.id.devrev}` } };
 
     if (sectionGid) {
       try {
@@ -61,7 +61,7 @@ async function createTask({
       }
     }
 
-    return { id: taskGid, modifiedDate: modifiedAt };
+    return { status: 'success', id: taskGid, modifiedDate: modifiedAt };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -78,7 +78,7 @@ async function updateTask({
     if (!externalId) {
       externalId = await resolveId(item.id.devrev) ?? undefined;
     }
-    if (!externalId) return { error: `No external ID for task update. taskDevrevId=${item.id.devrev}` };
+    if (!externalId) return { status: 'error', error: { message: `No external ID for task update. taskDevrevId=${item.id.devrev}` } };
 
     const asanaClient = new AsanaClient(event);
     const { updateRequest, sectionGid, tagGids } = await denormalizeTask(item.data, resolveId);
@@ -108,7 +108,7 @@ async function updateTask({
       }
     }
 
-    return { id: externalId, modifiedDate: modifiedAt };
+    return { status: 'success', id: externalId, modifiedDate: modifiedAt };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -142,7 +142,7 @@ async function createSubtask({
     const subtaskGid = response.data?.data?.gid;
     const modifiedAt = response.data?.data?.modified_at;
 
-    if (!subtaskGid) return { error: `Failed to create subtask — no GID returned. subtaskDevrevId=${item.id.devrev}` };
+    if (!subtaskGid) return { status: 'error', error: { message: `Failed to create subtask — no GID returned. subtaskDevrevId=${item.id.devrev}` } };
 
     if (tagGids?.length) {
       const failedTags: string[] = [];
@@ -158,7 +158,7 @@ async function createSubtask({
       }
     }
 
-    return { id: subtaskGid, modifiedDate: modifiedAt };
+    return { status: 'success', id: subtaskGid, modifiedDate: modifiedAt };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -182,7 +182,7 @@ async function createComment({
     const asanaClient = new AsanaClient(event);
     const { parentGid, request } = await denormalizeComment(item.data, resolveId);
 
-    if (!parentGid) return { error: `Cannot resolve parent task for comment. commentDevrevId=${item.id.devrev}, parentId=${String(item.data.parent_id)}` };
+    if (!parentGid) return { status: 'error', error: { message: `Cannot resolve parent task for comment. commentDevrevId=${item.id.devrev}, parentId=${String(item.data.parent_id)}` } };
 
     const response = await asanaClient.createTaskComment(parentGid, request);
     const commentGid = response.data?.data?.gid;
@@ -192,7 +192,9 @@ async function createComment({
     // normalizeAsanaComment, which uses created_at as modified_date.
     const modifiedDate = toTimestamp(response.data?.data?.created_at) ?? undefined;
 
-    return { id: commentGid, modifiedDate };
+    if (!commentGid) return { status: 'error', error: { message: `Failed to create comment — no GID returned. commentDevrevId=${item.id.devrev}` } };
+
+    return { status: 'success', id: commentGid, modifiedDate };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -209,7 +211,7 @@ async function updateComment({
     if (!storyGid) {
       storyGid = (await resolveId(item.id.devrev)) ?? undefined;
     }
-    if (!storyGid) return { error: `No external ID for comment update. commentDevrevId=${item.id.devrev}` };
+    if (!storyGid) return { status: 'error', error: { message: `No external ID for comment update. commentDevrevId=${item.id.devrev}` } };
 
     const asanaClient = new AsanaClient(event);
     const { request } = await denormalizeComment(item.data, resolveId);
@@ -217,7 +219,7 @@ async function updateComment({
     const response = await asanaClient.updateTaskComment(storyGid, request);
     const modifiedDate = toTimestamp(response.data?.data?.created_at) ?? undefined;
 
-    return { id: storyGid, modifiedDate };
+    return { status: 'success', id: storyGid, modifiedDate };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -233,7 +235,7 @@ async function createLink({
     const asanaClient = new AsanaClient(event);
     const linkAction = await denormalizeLink(item.data, resolveId);
 
-    if (!linkAction) return { error: `Cannot resolve link endpoints. linkDevrevId=${item.id.devrev}, source=${String(item.data.source)}, target=${String(item.data.target)}, linkType=${String(item.data.link_type)}` };
+    if (!linkAction) return { status: 'error', error: { message: `Cannot resolve link endpoints. linkDevrevId=${item.id.devrev}, source=${String(item.data.source)}, target=${String(item.data.target)}, linkType=${String(item.data.link_type)}` } };
 
     const syntheticId = `${linkAction.linkType}_${linkAction.sourceGid}_${linkAction.targetGid}`;
 
@@ -248,13 +250,13 @@ async function createLink({
       case 'is_related_to':
         // No direct Asana API equivalent — skip gracefully
         console.warn(`Link type '${linkAction.linkType}' has no Asana API equivalent. Skipping.`);
-        return { id: syntheticId };
+        return { status: 'success', id: syntheticId };
       default:
         console.warn(`Unknown link type '${linkAction.linkType}'. Skipping.`);
-        return { id: syntheticId };
+        return { status: 'success', id: syntheticId };
     }
 
-    return { id: syntheticId };
+    return { status: 'success', id: syntheticId };
   } catch (error) {
     return handleLoadingError(error);
   }
@@ -273,27 +275,6 @@ const itemTypesToLoad = [
   { itemType: ItemType.LINKS, create: createLink, update: updateLink },
 ];
 
-processTask<LoaderState>({
-  task: async ({ adapter }) => {
-    try {
-      console.log('Starting data loading.');
-      await adapter.loadItemTypes({ itemTypesToLoad });
-      console.log('Data loading completed.');
-      await adapter.emit(LoaderEventType.DataLoadingDone);
-    } catch (error) {
-      const result = handleLoadingError(error);
-      if (result.delay) {
-        console.warn(`Rate limited during data loading. Delaying for ${result.delay}s.`);
-        await adapter.emit(LoaderEventType.DataLoadingDelayed, { delay: result.delay });
-      } else {
-        console.error(`Data loading failed: ${result.error}`);
-        await adapter.emit(LoaderEventType.DataLoadingError, {
-          error: { message: result.error ?? 'Unknown error during data loading' },
-        });
-      }
-    }
-  },
-  onTimeout: async ({ adapter }) => {
-    await adapter.emit(LoaderEventType.DataLoadingProgress);
-  },
+processLoadingTask<LoaderState>({
+  task: async ({ adapter }) => adapter.loadItemTypes({ itemTypesToLoad }),
 });

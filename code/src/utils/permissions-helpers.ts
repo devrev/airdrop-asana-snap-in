@@ -1,4 +1,4 @@
-import { WorkerAdapter } from '@devrev/ts-adaas';
+import { ExtractionAdapter } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
 import { AccessLevel, ItemType } from '@asana/constants';
@@ -93,7 +93,7 @@ async function getAllExtractedUserGids(asanaClient: AsanaClient): Promise<string
  */
 export async function extractPermissions(
   asanaClient: AsanaClient,
-  adapter: WorkerAdapter<ExtractorState>
+  adapter: ExtractionAdapter<ExtractorState>
 ): Promise<void> {
   if (adapter.state.access_rules.completed) {
     console.log('Permissions extraction already completed, skipping.');
