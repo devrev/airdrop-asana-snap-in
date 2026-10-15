@@ -92,10 +92,5 @@ async function createAttachment({
 }
 
 processLoadingTask<LoaderState>({
-  task: async ({ adapter }) => {
-    console.log('Starting attachment loading.');
-    const result = await adapter.loadAttachments({ create: createAttachment });
-    console.log('Attachment loading completed.');
-    return result;
-  },
+  task: async ({ adapter }) => adapter.loadAttachments({ create: createAttachment }),
 });

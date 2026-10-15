@@ -276,10 +276,5 @@ const itemTypesToLoad = [
 ];
 
 processLoadingTask<LoaderState>({
-  task: async ({ adapter }) => {
-    console.log('Starting data loading.');
-    const result = await adapter.loadItemTypes({ itemTypesToLoad });
-    console.log('Data loading completed.');
-    return result;
-  },
+  task: async ({ adapter }) => adapter.loadItemTypes({ itemTypesToLoad }),
 });

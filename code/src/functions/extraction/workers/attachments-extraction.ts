@@ -50,15 +50,8 @@ async function stream({
 }
 
 processExtractionTask<ExtractorState>({
-  task: async ({ adapter }) => {
-    const response = await adapter.streamAttachments({
-      stream,
-      batchSize: ATTACHMENT_BATCH_SIZE,
-    });
-
-    if (response.status === 'success') {
-      console.log('Attachment streaming completed.');
-    }
-    return response;
-  },
+  task: async ({ adapter }) => adapter.streamAttachments({
+    stream,
+    batchSize: ATTACHMENT_BATCH_SIZE,
+  }),
 });

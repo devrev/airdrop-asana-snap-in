@@ -12,7 +12,7 @@ Runs as a **snap-in** (plug-in) on AWS Lambda using the `@devrev/airsync-sdk` SD
 - **Snap-in**: A plug-in deployed to AWS Lambda. Max execution time is 15 minutes (hard timeout); the SDK sends a soft timeout signal at ~10-13 minutes so the worker can save state and exit gracefully.
 - **`@devrev/airsync-sdk` SDK**: The core SDK this connector is built on. Public npm package and open-source repo at https://github.com/devrev/adaas-sdk. Handles state persistence between Lambda invocations, file uploads (artifacts), worker orchestration (main thread + worker threads), attachment streaming, event handling, and the AirSync control protocol. Key exports used by this connector: `spawn`, `processExtractionTask`, `processLoadingTask`, `ExtractionAdapter`, `LoadingAdapter`, `TaskResult`, `AirSyncEvent`, `EventType`, `SyncMode`, `RepoInterface`, `NormalizedItem`, `NormalizedAttachment`.
 - **Extraction (forward sync)**: Pulling data from Asana into DevRev.
-- **Loading (reverse sync)**: Pushing data from DevRev back to Asana. Supports tasks, subtasks, comments (create-only), links, and attachments.
+- **Loading (reverse sync)**: Pushing data from DevRev back to Asana. Supports tasks, subtasks, comments, links, and attachments.
 - **External Sync Unit (ESU)**: An Asana project — the boundary of a single sync operation.
 - **Sync run**: One end-to-end extract-transform-load execution of a sync unit, comprised of sequential phases.
 - **Initial sync**: The first sync run, triggered manually by the user. Extracts all data from the selected Asana project. Includes the ESU extraction phase.
@@ -244,8 +244,9 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 ## Testing
 
-- **Unit tests**: 20 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
+- **Tests**: 21 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
+- **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.
 - **Local integration testing**: Set `AIRSYNC_LOCAL_DEVELOPMENT=1` to enable SDK local logging and artifact copies. The local runner has a direct `@devrev/typescript-sdk` development dependency. Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
 
 ## Important Constraints and Gotchas
