@@ -1,0 +1,29 @@
+version: 1
+
+connector:
+  entrypoint: ../../dist/index.js
+  function: extraction
+
+stages:
+  - external_sync_unit_extraction
+  - metadata_extraction
+  - data_extraction
+  - attachment_extraction
+
+connection_data:
+  org_id: mock_workspace
+  org_name: Asana offline mock orchestration test
+  key: mock-token
+  key_type: pat
+
+event_context:
+  external_sync_unit_id: mock_project_0
+  external_sync_unit_name: Asana offline mock orchestration test project
+  mode: INITIAL
+
+mock_server:
+  config: ../mock_config.yaml
+  scenario: happy
+  startup_timeout_ms: 30000
+
+wait_for_delays: false

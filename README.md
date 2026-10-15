@@ -149,6 +149,14 @@ npm test -- --coverage  # Run tests with coverage report
 
 Tests use Jest with `ts-jest`. Coverage thresholds are configured in `jest.config.js`. Test files are co-located with source files using the `*.test.ts` naming convention.
 
+The full extraction lifecycle can also be exercised offline against deterministic synthetic Asana data:
+
+```bash
+AIRDROP_EXTERNAL_API_MOCK=/path/to/airdrop-external-api-mock ./scripts/run_airdrop_mock_orchestration_test.sh
+```
+
+This runs external-sync-unit, metadata, data, and attachment phases through the framework runner and checks for the final `ATTACHMENT_EXTRACTION_DONE` callback. The mock config has no proxy target, so no Asana credentials or network access are needed. Synthetic tasks intentionally contain no downloadable attachments, so this covers orchestration through the attachment phase, not file streaming. For just external-sync-unit extraction, run `./scripts/run_airdrop_mock_fixture_test.sh` instead.
+
 ### 7. Deploy
 
 ```bash

@@ -51,13 +51,34 @@ describe('AsanaClient', () => {
   });
 
   describe('constructor', () => {
-    it('should create HTTP client with correct base URL and auth header', () => {
-      createClient();
+    it('should create HTTP client with the default base URL and auth header when no mock is configured', () => {
+      const originalMockServerUrl = process.env.MOCK_SERVER_URL;
+      delete process.env.MOCK_SERVER_URL;
+      try {
+        createClient();
 
-      expect(mockAxios.create).toHaveBeenCalledWith({
-        baseURL: 'https://app.asana.com/api/1.0',
-        headers: { Authorization: 'Bearer test-api-key' },
-      });
+        expect(mockAxios.create).toHaveBeenCalledWith({
+          baseURL: 'https://app.asana.com/api/1.0',
+          headers: { Authorization: 'Bearer test-api-key' },
+        });
+      } finally {
+        if (originalMockServerUrl !== undefined) process.env.MOCK_SERVER_URL = originalMockServerUrl;
+      }
+    });
+
+    it('should use MOCK_SERVER_URL for API requests when the runner starts an external mock', () => {
+      const originalMockServerUrl = process.env.MOCK_SERVER_URL;
+      process.env.MOCK_SERVER_URL = 'http://127.0.0.1:8123/';
+      try {
+        createClient();
+        expect(mockAxios.create).toHaveBeenCalledWith({
+          baseURL: 'http://127.0.0.1:8123/api/1.0',
+          headers: { Authorization: 'Bearer test-api-key' },
+        });
+      } finally {
+        if (originalMockServerUrl === undefined) delete process.env.MOCK_SERVER_URL;
+        else process.env.MOCK_SERVER_URL = originalMockServerUrl;
+      }
     });
 
     it('should set projectId from event context', () => {
