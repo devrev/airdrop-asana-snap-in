@@ -152,10 +152,11 @@ Tests use Jest with `ts-jest`. Coverage thresholds are configured in `jest.confi
 The full extraction lifecycle can also be exercised offline against deterministic synthetic Asana data:
 
 ```bash
-AIRDROP_EXTERNAL_API_MOCK=/path/to/airdrop-external-api-mock ./scripts/run_airdrop_mock_orchestration_test.sh
+cd code
+npm run test:orchestration
 ```
 
-This runs external-sync-unit, metadata, data, and attachment phases through the framework runner and checks for the final `ATTACHMENT_EXTRACTION_DONE` callback. The mock config has no proxy target, so no Asana credentials or network access are needed. Synthetic tasks intentionally contain no downloadable attachments, so this covers orchestration through the attachment phase, not file streaming. For just external-sync-unit extraction, run `./scripts/run_airdrop_mock_fixture_test.sh` instead.
+This runs external-sync-unit, metadata, data, and attachment phases through the framework runner and checks for the final `ATTACHMENT_EXTRACTION_DONE` callback. The mock config has no proxy target, so no Asana credentials or network access are needed. Synthetic tasks intentionally contain no downloadable attachments, so this covers orchestration through the attachment phase, not file streaming. For just external-sync-unit extraction, run `npm run test:fixture`. To run any other manifest fixture, use `npm run test:scenario -- <fixture-directory>`; it builds the connector first. `test:scenario` invokes the runner with `npx --package=<local-runner-directory>`, defaulting to the adjacent `airdrop-snap-in-mock-dependencies` checkout. Set `AIRDROP_TEST_RUNNER_ROOT` to another local package directory if needed; once the runner is published, this package spec can be changed to its npm package name. The external mock binary must be available on `PATH` (or set `AIRDROP_EXTERNAL_API_MOCK`).
 
 ### 7. Deploy
 
