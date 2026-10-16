@@ -75,9 +75,12 @@ flowchart LR
 ```
 airdrop-asana-snap-in/
 ├── manifest.yaml                    # Snap-in manifest (functions, keyrings, imports)
+├── marketplace/                     # Listing contract, assets, and setup-article handoff
 ├── docs/
 │   ├── prd.md                       # Product requirements document
-│   └── tdd.md                       # Technical design document
+│   ├── tdd.md                       # Technical design document
+│   ├── marketplace-e2e-test.md       # Live dev marketplace verification
+│   └── marketplace-e2e-evidence.json # Sanitized readback and request counts
 ├── code/
 │   ├── package.json
 │   ├── tsconfig.json                # Path aliases: @utils/*, @asana/*, @functions/*

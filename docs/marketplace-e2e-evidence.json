@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-16",
+  "environment": "dev",
+  "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+  "state": "draft",
+  "checks": {
+    "name": true,
+    "tagline": true,
+    "summary": true,
+    "description": true,
+    "documentation_link": true,
+    "categories": true,
+    "part": true,
+    "state": true,
+    "snap_in_version": true,
+    "blueprint": true,
+    "code_change_links": true,
+    "icon": true,
+    "media": true,
+    "media_count": true
+  },
+  "assets": [
+    {
+      "role": "icon",
+      "id": "don:core:dvrv-global:devo/787:artifact/580425",
+      "sha256": "df385136ec1edf03dbbc1de226c3e9eb9dad4d8cdc4957e6bed1cde07ea8e000",
+      "file": {
+        "name": "listing-df385136ec1edf03dbbc1de226c3e9eb9dad4d8cdc4957e6bed1cde07ea8e000.png",
+        "size": 20777,
+        "type": "image/png"
+      }
+    },
+    {
+      "role": "media",
+      "id": "don:core:dvrv-global:devo/787:artifact/580428",
+      "sha256": "8509995696575a32a631738dc79497ab2dc5f07f497fe33a20b23b0dda30934b",
+      "file": {
+        "name": "listing-8509995696575a32a631738dc79497ab2dc5f07f497fe33a20b23b0dda30934b.png",
+        "size": 18454,
+        "type": "image/png"
+      }
+    }
+  ],
+  "snap_in_version_id": "don:integration:dvrv-us-1:devo/787:snap_in_package/12e5b89c-1279-44f1-bb5e-d33b45cbf754:snap_in_version/92b96262-49ea-4800-b9df-88f5d3fcef32",
+  "blueprint_artifact_id": "don:core:dvrv-global:devo/787:artifact/580427",
+  "all_passed": true,
+  "content_runs": {
+    "noop": {
+      "requests": {
+        "GET /internal/artifacts.get": 2,
+        "GET /internal/artifacts.locate": 2,
+        "GET /internal/marketplace-categories.list": 1,
+        "GET /internal/marketplace-items.get": 1,
+        "GET /internal/marketplace-submissions.get": 5,
+        "GET /internal/marketplace-submissions.list": 1
+      },
+      "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+      "writes": {}
+    },
+    "clear": {
+      "requests": {
+        "GET /internal/artifacts.get": 2,
+        "GET /internal/artifacts.locate": 2,
+        "GET /internal/marketplace-categories.list": 1,
+        "GET /internal/marketplace-items.get": 1,
+        "GET /internal/marketplace-submissions.get": 7,
+        "GET /internal/marketplace-submissions.list": 1,
+        "POST /internal/marketplace-submissions.update": 2
+      },
+      "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+      "writes": {
+        "POST /internal/marketplace-submissions.update": 2
+      }
+    },
+    "restore": {
+      "requests": {
+        "GET /internal/artifacts.get": 1,
+        "GET /internal/artifacts.locate": 1,
+        "GET /internal/marketplace-categories.list": 1,
+        "GET /internal/marketplace-items.get": 1,
+        "GET /internal/marketplace-submissions.get": 7,
+        "GET /internal/marketplace-submissions.list": 1,
+        "POST /internal/artifacts.prepare": 1,
+        "POST /internal/marketplace-submissions.update": 2
+      },
+      "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+      "writes": {
+        "POST /internal/artifacts.prepare": 1,
+        "POST /internal/marketplace-submissions.update": 2
+      }
+    },
+    "restored-noop": {
+      "requests": {
+        "GET /internal/artifacts.get": 2,
+        "GET /internal/artifacts.locate": 2,
+        "GET /internal/marketplace-categories.list": 1,
+        "GET /internal/marketplace-items.get": 1,
+        "GET /internal/marketplace-submissions.get": 5,
+        "GET /internal/marketplace-submissions.list": 1
+      },
+      "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+      "writes": {}
+    },
+    "final-copy": {
+      "requests": {
+        "GET /internal/artifacts.get": 2,
+        "GET /internal/artifacts.locate": 2,
+        "GET /internal/marketplace-categories.list": 1,
+        "GET /internal/marketplace-items.get": 1,
+        "GET /internal/marketplace-submissions.get": 6,
+        "GET /internal/marketplace-submissions.list": 1,
+        "POST /internal/marketplace-submissions.update": 1
+      },
+      "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+      "writes": {
+        "POST /internal/marketplace-submissions.update": 1
+      }
+    },
+    "final-noop": {
+      "requests": {
+        "GET /internal/artifacts.get": 2,
+        "GET /internal/artifacts.locate": 2,
+        "GET /internal/marketplace-categories.list": 1,
+        "GET /internal/marketplace-items.get": 1,
+        "GET /internal/marketplace-submissions.get": 5,
+        "GET /internal/marketplace-submissions.list": 1
+      },
+      "submission_id": "don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_submission/878b149c-7c45-46db-bc20-1e748982defb",
+      "writes": {}
+    }
+  },
+  "detection": {
+    "listing-only": {
+      "files": [
+        "marketplace/listing.yaml"
+      ],
+      "directories": [
+        "/Users/tilenkavcic/Dev/codegen/airdrop-asana-snap-in"
+      ]
+    },
+    "media-only": {
+      "files": [
+        "marketplace/banner.png"
+      ],
+      "directories": [
+        "/Users/tilenkavcic/Dev/codegen/airdrop-asana-snap-in"
+      ]
+    },
+    "deleted-media": {
+      "files": [
+        "marketplace/deleted.png"
+      ],
+      "directories": [
+        "/Users/tilenkavcic/Dev/codegen/airdrop-asana-snap-in"
+      ]
+    },
+    "docs-only": {
+      "files": [
+        "docs/tdd.md"
+      ],
+      "directories": []
+    }
+  }
+}

@@ -1,0 +1,33 @@
+schema_version: 1
+name: Asana
+tagline: Keep project work connected across teams.
+summary: Sync Asana tasks and subtasks with DevRev issues, including comments, attachments, dependencies, and custom fields, so teams can coordinate work across both systems.
+description: |-
+  Connect Asana projects to DevRev with bidirectional synchronization of tasks and subtasks. Import project context into DevRev and send supported issue updates back to Asana.
+
+  ## Features
+
+  - **Bidirectional task synchronization**
+
+    Sync tasks and subtasks with DevRev issues, including supported custom fields, comments, attachments, and dependency links.
+
+  - **Project context**
+
+    Import users, tags, teams, team memberships, and project permissions from Asana into DevRev. These objects sync from Asana to DevRev only.
+
+  - **Incremental and time-scoped imports**
+
+    Import a selected Asana project, then retrieve supported changes since the previous sync or within a configured time window. Subtasks are supported up to two levels beneath a task.
+
+  - **Flexible authentication**
+
+    Connect through OAuth or an Asana personal access token using an account with access to the workspace and project you want to sync.
+icon: icon.png
+media:
+  - banner.png
+documentation_link: https://support.devrev.ai/en-US/devrev/article/hxBLyPqQ-asana-airsync
+environments:
+  dev:
+    categories:
+      - don:integration:dvrv-global:devo/787:marketplace/653d1e49-7f0a-4009-91df-05436191ec56:marketplace_category/957753be-de56-4f20-be8b-3a4aeb4a0de7
+    part: null
