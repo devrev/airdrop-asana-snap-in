@@ -413,6 +413,4 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 
 ## Marketplace listing content
 
-`marketplace/listing.yaml` owns the initial submission copy, icon, banner, documentation link, and environment-specific category/part references. `marketplace/article.json` identifies the existing published Asana setup article; `marketplace/setup-article.md` records its extracted text, and `marketplace/SOURCES.md` records source attribution. The local ignored root `marketplace.yaml` selects an isolated dev listing/package and the existing Asana OAuth developer connection for the FORGE-699 integration test.
-
-Live dev submission results and limits are recorded in `docs/marketplace-e2e-test.md`, with sanitized machine-readable checks in `docs/marketplace-e2e-evidence.json`.
+`marketplace/listing.yaml` owns the initial submission copy, icon, banner, documentation link, and environment-specific category/part references. `marketplace/article.json` identifies the existing published Asana setup article; `marketplace/setup-article.md` records its extracted text, and `marketplace/SOURCES.md` records source attribution.
