@@ -45,3 +45,9 @@ No connector sync was run. `REQUIRE_SMOKE_TEST_REPORT=false` allowed the missing
 ## Article discrepancy
 
 The existing published Asana setup article ART-22648 still says comments sent to Asana are create-only. Current loading code implements comment updates. Listing copy follows the implemented code; `marketplace/setup-article.md` preserves the existing article snapshot. Updating and publishing the article remains separate follow-up work.
+
+## Part resolution follow-up
+
+On 2026-10-16, the Action at `5bb8626` was checked against live QA and production APIs without remote writes. QA preflight with `part: null` resolved the existing test enhancement ENH-31 (`don:core:dvrv-us-1:devo/188:enhancement/31`). Production Asana lookup preferred feature FEAT-3145 (`don:core:dvrv-us-1:devo/0:feature/3145`) over the same-named enhancement ENH-2504, using 50 GET requests and zero writes. Neither path creates parts.
+
+Regression tests cover feature preference across paginated results, enhancement fallback when no feature matches, ambiguity between features, lookup failures before writes, explicit production IDs, and skipping all content/part resolution for existing listings. The dev draft from the full test retains its null part; the QA/production follow-up did not create submissions or change the dev draft. The content contract at `02ccf36` documents this selection policy.

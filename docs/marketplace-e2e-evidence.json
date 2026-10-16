@@ -160,5 +160,21 @@
       ],
       "directories": []
     }
+  },
+  "part_resolution_followup": {
+    "date": "2026-10-16",
+    "action_commit": "5bb8626",
+    "remote_writes": 0,
+    "qa": {
+      "part": "don:core:dvrv-us-1:devo/188:enhancement/31",
+      "check": "initial-listing preflight"
+    },
+    "prod": {
+      "connector": "Asana",
+      "part": "don:core:dvrv-us-1:devo/0:feature/3145",
+      "ignored_matching_enhancement": "don:core:dvrv-us-1:devo/0:enhancement/2504",
+      "get_requests": 50,
+      "check": "actual Action part resolver"
+    }
   }
 }
