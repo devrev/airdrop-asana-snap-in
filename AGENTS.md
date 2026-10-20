@@ -78,7 +78,7 @@ airdrop-asana-snap-in/
 ├── docs/
 │   ├── prd.md                       # Product requirements document
 │   ├── tdd.md                       # Technical design document
-│   └── unit-test-coverage.md        # Scenario audit, defect evidence and deferred test handoff
+│   └── unit-test-coverage.md        # Implementation changes and scenario inventory
 ├── code/
 │   ├── package.json
 │   ├── tsconfig.json                # Path aliases: @utils/*, @asana/*, @functions/*
@@ -260,7 +260,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 ## Testing
 
 - **Tests**: 25 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
-- **No-mock unit audit**: `jest.unit.config.js` selects four existing pure suites and four scenario suites (`normalization-scenarios`, `reverse-sync-scenarios`, `control-scenarios`, `metadata-permission-scenarios`). It excludes the existing `resolveExternalId callback` group containing replacement callbacks. New tests use supplied data/errors and explicit parser times; numeric reverse-sync references use the production resolver with a real SDK mapper without lookups. Coverage is written under `code/coverage/unit`; the dedicated suite reports whole-connector coverage without the full-suite 80% gate. The default configuration is unchanged. Scenario coverage, fixed defects and deferred component/static/live work are in `docs/unit-test-coverage.md`.
+- **No-mock unit audit**: `jest.unit.config.js` selects four existing pure suites and four scenario suites (`normalization-scenarios`, `reverse-sync-scenarios`, `control-scenarios`, `metadata-permission-scenarios`). It excludes the existing `resolveExternalId callback` group containing replacement callbacks. New tests use supplied data/errors and explicit parser times; numeric reverse-sync references use the production resolver with a real SDK mapper without lookups. Coverage is written under `code/coverage/unit`; the dedicated suite reports whole-connector coverage without the full-suite 80% gate. The default configuration is unchanged. Implementation changes, the unit-test result and scenario inventory are in `docs/unit-test-coverage.md`.
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
 - **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.
 - **Local integration testing**: Set `AIRSYNC_LOCAL_DEVELOPMENT=1` to enable SDK local logging and artifact copies. The local runner has a direct `@devrev/typescript-sdk` development dependency. Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
@@ -284,7 +284,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 - `docs/prd.md` — Product requirements document
 - `docs/tdd.md` — Technical design document (data mapping, API endpoints, limitations)
-- `docs/unit-test-coverage.md` — Unit scenario inventory, confirmed fixes and handoff for other test approaches
+- `docs/unit-test-coverage.md` — Implementation changes, unit-test result and scenario inventory
 - `README.md` — Setup, authentication (PAT/OAuth), deployment instructions
 
 ### `@devrev/airsync-sdk` SDK

@@ -416,7 +416,7 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 
 `npm run test:unit -- --runInBand` uses `jest.unit.config.js` to select direct connector-owned function tests. Four scenario suites cover normalization, reverse-sync request data, control/error/state preparation, and metadata/permission payloads. Four existing pure suites are retained; the existing mapper-callback group is excluded because it supplies replacement functions. No mocked dependency, worker, HTTP-server, static or live tests run through this command. Whole-connector coverage is collected under `code/coverage/unit`; the dedicated command does not apply the default full-suite 80% coverage gate. The default Jest command and gate remain unchanged.
 
-`docs/unit-test-coverage.md` maps all 95 available scenarios, records baseline and final verification, and hands off incomplete behavior and scenarios requiring other test approaches. Unit assertions on permission payloads do not establish effective source grants, persisted snapshot replacement or destination enforcement.
+`docs/unit-test-coverage.md` briefly summarizes implementation changes and the unit-test result, followed by all 95 scenario statuses. Unit assertions on permission payloads do not establish effective source grants, persisted snapshot replacement or destination enforcement.
 
 ### Normalization corrections
 
