@@ -141,7 +141,7 @@ processExtractionTask<ExtractorState>({
       } catch (error) {
         const { delay, error: extractionError } = handleExtractionError(error);
 
-        if (delay) {
+        if (delay !== undefined) {
           console.warn(`Rate limited during ${itemType.name} extraction. Delaying for ${delay}s.`);
           return { status: 'delay', delaySeconds: delay };
         } else {

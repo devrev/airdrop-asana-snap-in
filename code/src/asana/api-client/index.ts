@@ -95,6 +95,8 @@ const TASK_FIELDS = [
   'custom_fields.name',
   'custom_fields.display_value',
   'custom_fields.type',
+  'custom_fields.representation_type',
+  'custom_fields.is_formula_field',
   'custom_fields.enum_value',
   'custom_fields.enum_value.name',
   'custom_fields.enum_value.color',
@@ -126,6 +128,8 @@ const TAGS_FIELDS = ['name', 'color', 'created_at', 'notes'].join(',');
 const CUSTOM_FIELD_SETTINGS_FIELDS = [
   'custom_field.name',
   'custom_field.type',
+  'custom_field.representation_type',
+  'custom_field.is_formula_field',
   'custom_field.resource_subtype',
   'custom_field.description',
   'custom_field.enum_options',

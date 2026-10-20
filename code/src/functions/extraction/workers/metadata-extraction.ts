@@ -16,7 +16,7 @@ function getEnrichmentFailure(
   step: string,
   result: ExtractListResponse | void
 ): TaskResult | null {
-  if (result?.delay) {
+  if (result?.delay !== undefined) {
     console.warn(`Rate limited while extracting metadata ${step}. Delaying for ${result.delay}s.`);
     return { status: 'delay', delaySeconds: result.delay };
   }

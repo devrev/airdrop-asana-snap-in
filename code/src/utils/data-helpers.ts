@@ -14,6 +14,7 @@ import {
   extractInlineAttachmentGids,
   stripAssetUrlsFromText,
 } from '@utils/attachment-helpers';
+import { parseRetryAfter } from '@utils/retry-after';
 import { serializeError } from '@utils/serialize-error';
 
 import { ExtractorState, initialState } from '../functions/extraction/index';
@@ -61,9 +62,8 @@ export function prepareStateForExtraction(adapter: ExtractionAdapter<ExtractorSt
 /** Handle extraction errors, returning a delay for 429s or an error record otherwise. */
 export function handleExtractionError(error: unknown): ExtractListResponse {
   if (axios.isAxiosError(error) && error.response?.status === 429) {
-    // Fall back to 60s if Retry-After header is missing or non-numeric
-    const retryAfter = Number(error.response.headers['retry-after']) || 60;
-    return { delay: retryAfter };
+    const retryAfter = parseRetryAfter(error.response.headers['retry-after']);
+    return typeof retryAfter === 'number' ? { delay: retryAfter } : retryAfter;
   }
 
   const errorMessage = `Error while extracting data: ${serializeError(error)}`;

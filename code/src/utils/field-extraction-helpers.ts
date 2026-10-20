@@ -49,32 +49,38 @@ export function extractCustomFields(
     const fieldKey = field.gid;
     let fieldValue: CustomFieldValue = null;
 
-    switch (field.type) {
-      case CustomFieldType.TEXT:
-        fieldValue = field.text_value || null;
-        break;
-      case CustomFieldType.NUMBER:
-        fieldValue = field.number_value ?? null;
-        break;
-      case CustomFieldType.ENUM:
-        fieldValue = field.enum_value?.gid || null;
-        break;
-      case CustomFieldType.MULTI_ENUM:
-        fieldValue = field.multi_enum_values?.map((v) => v.gid).filter((gid): gid is string => !!gid) || null;
-        break;
-      case CustomFieldType.DATE:
-        if (field.date_value) {
-          // ISS-317765 fix: the DevRev field is declared as 'timestamp' (metadata-helpers.ts:20
-          // DATE->timestamp), so a date-only value must be normalized to a full ISO-8601 timestamp.
-          // A bare 'YYYY-MM-DD' is not a valid timestamp and gets dropped / errors the record sync.
-          fieldValue = toTimestamp(field.date_value.date_time || field.date_value.date);
-        }
-        break;
-      case CustomFieldType.PEOPLE:
-        fieldValue = field.people_value?.map((p) => p.gid).filter((gid): gid is string => !!gid) || null;
-        break;
-      default:
-        fieldValue = field.display_value || null;
+    if (field.is_formula_field || field.representation_type === 'formula') {
+      // Asana's formula fields report their underlying base type (often `number`) separately from
+      // their representation. The TDD maps formulas to text and requires the computed display value.
+      fieldValue = field.display_value ?? null;
+    } else {
+      switch (field.type) {
+        case CustomFieldType.TEXT:
+          fieldValue = field.text_value ?? null;
+          break;
+        case CustomFieldType.NUMBER:
+          fieldValue = field.number_value ?? null;
+          break;
+        case CustomFieldType.ENUM:
+          fieldValue = field.enum_value?.gid || null;
+          break;
+        case CustomFieldType.MULTI_ENUM:
+          fieldValue = field.multi_enum_values?.map((v) => v.gid).filter((gid): gid is string => !!gid) || null;
+          break;
+        case CustomFieldType.DATE:
+          if (field.date_value) {
+            // ISS-317765 fix: the DevRev field is declared as 'timestamp' (metadata-helpers.ts:20
+            // DATE->timestamp), so a date-only value must be normalized to a full ISO-8601 timestamp.
+            // A bare 'YYYY-MM-DD' is not a valid timestamp and gets dropped / errors the record sync.
+            fieldValue = toTimestamp(field.date_value.date_time || field.date_value.date);
+          }
+          break;
+        case CustomFieldType.PEOPLE:
+          fieldValue = field.people_value?.map((p) => p.gid).filter((gid): gid is string => !!gid) || null;
+          break;
+        default:
+          fieldValue = field.display_value ?? null;
+      }
     }
 
     if (fieldValue !== null && fieldValue !== undefined) {

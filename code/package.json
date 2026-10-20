@@ -13,6 +13,7 @@
     "build": "rimraf ./dist && tsc && tsc-alias",
     "package": "npm run build && tar -cvzf build.tar.gz dist package.json package-lock.json .npmrc",
     "test": "jest",
+    "test:unit": "jest --config jest.unit.config.js",
     "test:server": "AIRSYNC_LOCAL_DEVELOPMENT=1 nodemon --watch src --watch test test/main.ts",
     "api-gen": "npx @openapitools/openapi-generator-cli generate -i https://raw.githubusercontent.com/Asana/openapi/refs/heads/master/defs/asana_oas.yaml -g typescript-axios -o src/asana/api-client/generated --skip-validate-spec",
     "generate-mock-data": "ts-node scripts/generate-mock-data/index.ts",

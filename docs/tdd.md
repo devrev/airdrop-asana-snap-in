@@ -11,7 +11,7 @@
 
 # 1. Product Overview
 
-This document describes the AirSync connector for [Asana](https://asana.com/), enabling bidirectional synchronization between Asana and DevRev. The connector extracts tasks, subtasks, users, tags, comments, attachments, links (parent-child and dependency relationships), groups (teams), group memberships, and access rules (project permissions) from Asana projects into DevRev. Loading (DevRev -> Asana) supports tasks, subtasks, comments (create-only), links, and attachments.
+This document describes the AirSync connector for [Asana](https://asana.com/), enabling bidirectional synchronization between Asana and DevRev. The connector extracts tasks, subtasks, users, tags, comments, attachments, links (parent-child and dependency relationships), groups (teams), group memberships, and access rules (project permissions) from Asana projects into DevRev. Loading (DevRev -> Asana) supports tasks, subtasks, comments (create and update through the stories API), links, and attachments.
 
 **Reference Material:**
 
@@ -148,7 +148,7 @@ Tags are forward-only. Only `name` is mapped in `initial_domain_mapping.json`; `
 | `created_by_id`    | `created_by`           | `use_directly`  | Yes     | No      |
 | `modified_by_id`   | `created_by`           | `use_directly`  | Yes     | No      |
 
-> **Note:** Comment create uses `POST /tasks/{taskGid}/stories`. Updates return an error because Asana API does not support updating or deleting comments (stories).
+> **Note:** Comment creation uses `POST /tasks/{taskGid}/stories`; updates are attempted through `PUT /stories/{storyGid}` and return per-item delay/error results on failure.
 
 ### 2.2.7 Link Field Mapping (links -> link)
 
@@ -248,7 +248,7 @@ For time-scoped and incremental syncs, tasks are filtered using the `modified_si
 
 The `AsanaClient` uses `axios-retry` (3 attempts, exponential backoff 2s, 4s, 8s) for network errors and 5xx responses only. 429s are never retried in-process: sleeping on `Retry-After` inside the worker could run it into the Lambda hard timeout.
 
-`handleExtractionError` supplies a delay value and `handleLoadingError` returns `{ status: 'delay', delaySeconds }` for a 429 (Asana's `Retry-After`, or 60s if missing). Workers return a delay result so `@devrev/airsync-sdk` emits the phase delay event and the platform reschedules. This covers metadata, data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no `*_DELAYED` event, so a 429 there fails the phase with a "retry in N seconds" message.
+For a 429 with a representable delay, `handleExtractionError` supplies a delay value and `handleLoadingError` returns `{ status: 'delay', delaySeconds }` (Asana's `Retry-After`, or 60s if missing/invalid). A valid digit sequence above the safe integer range returns an error result instead, without scheduling an early retry or throwing from either handler. Workers return a delay result so `@devrev/airsync-sdk` emits the phase delay event and the platform reschedules. This covers metadata, data and attachment extraction, and data/attachment loading. External-sync-unit extraction has no `*_DELAYED` event, so a 429 there fails the phase with a "retry in N seconds" message.
 
 ### 2.4.2 Pagination
 
@@ -305,7 +305,7 @@ During the metadata extraction phase, the connector:
    - `open` (not completed) — maps to state `open`
    - `completed` (completed) — maps to state `closed` (with `is_end_state: true`)
 
-`getEnrichmentFailure` returns a `TaskResult` to the worker: delay with the `Retry-After` value (60s fallback) for 429, error with an error record for other failures, or null so enrichment continues. The worker returns that result. The SDK sends metadata progress on soft timeout. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
+`getEnrichmentFailure` returns a `TaskResult` to the worker: delay with a representable `Retry-After` value (60s fallback for missing/invalid headers) for 429, error with an error record for valid unrepresentable delays or other failures, or null so enrichment continues. The worker returns that result. The SDK sends metadata progress on soft timeout. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
 
 ## 2.6 Data Extraction Architecture
 
@@ -347,7 +347,7 @@ Asana provides task descriptions and comments as HTML (`html_notes`, `html_text`
 
 # 3. Limitations
 
-1. **Comment updates:** Asana API does not support updating or deleting comments (stories). Reverse sync for comments is create-only; update requests are silently treated as no-ops (return success without action).
+1. **Comment updates:** Reverse sync attempts `PUT /stories/{storyGid}`; rejected updates return per-item error results. Actual source acceptance is not established by the unit-only audit.
 2. **Subtask depth:** Subtask extraction is limited to 2 levels of nesting (subtask and sub-subtask, i.e. `MAX_SUBTASK_DEPTH = 2` where 0 = project task, 1 = subtask, 2 = sub-subtask). This is a DevRev platform limitation: links only support 2 levels deep.
 3. **Multi-homing:** Asana tasks can belong to multiple projects. The connector syncs tasks from the selected project only; section/stage is derived from the membership in the current project context.
 4. **Guest access:** Guests in Asana have zero visibility by default. The connector only syncs objects accessible to the authenticated user.
@@ -410,3 +410,20 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 ### Migration integration verification
 
 `code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; and real loader create/update/429/error outcomes. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.
+
+
+## Direct unit-test audit (2026-10-20)
+
+`npm run test:unit -- --runInBand` uses `jest.unit.config.js` to select direct connector-owned function tests. Four scenario suites cover normalization, reverse-sync request data, control/error/state preparation, and metadata/permission payloads. Four existing pure suites are retained; the existing mapper-callback group is excluded because it supplies replacement functions. No mocked dependency, worker, HTTP-server, static or live tests run through this command. Whole-connector coverage is collected under `code/coverage/unit`; the dedicated command does not apply the default full-suite 80% coverage gate. The default Jest command and gate remain unchanged.
+
+`docs/unit-test-coverage.md` maps all 95 available scenarios, records baseline and final verification, and hands off incomplete behavior and scenarios requiring other test approaches. Unit assertions on permission payloads do not establish effective source grants, persisted snapshot replacement or destination enforcement.
+
+### Normalization corrections
+
+`buildCustomFieldDefinition` detects `representation_type: formula` or `is_formula_field: true` independently of the underlying Asana base type. It emits read-only text; `extractCustomFields` emits the computed `display_value`. Task/subtask and custom-field-settings API projections request both discriminator fields. Text and fallback display-value normalization preserve empty strings while omitting explicit null values. The direct regression inputs cover assembled task values as well as field metadata; the actual HTTP projections need component verification.
+
+### Rate-limit corrections
+
+The shared `retry-after.ts` utility exports `parseRetryAfter(value, nowMs?)`. Both `handleExtractionError` and `handleLoadingError` use it. Safe nonnegative integer seconds, including zero and `Number.MAX_SAFE_INTEGER`, are preserved. Supported HTTP-date wire forms are interpreted in UTC, future intervals round up to whole seconds, and equal/past dates yield zero. Missing, malformed, signed/fractional or nonfinite literal values yield the existing 60-second fallback. RFC 9110 defines `delay-seconds = 1*DIGIT` without a numeric upper limit. A digit sequence above `Number.MAX_SAFE_INTEGER`, whether finite after numeric conversion or overflowing to infinity, is valid but cannot be safely represented for scheduling. The parser returns `{ error: { message } }` for these inputs. Both error handlers propagate an explicit error result with no delay and no uncaught exception. This conservative policy fails the operation rather than shortening a valid server wait. The explicit clock parameter permits deterministic date tests without replacing clocks.
+
+`describeMetadataError` is exported for direct input/output checks. It and every extraction worker delay consumer check presence rather than truthiness so zero is retained, including the ESU phase's retry hint. The SDK owns actual response emission and rescheduling. Direct tests check delay construction; worker propagation remains a component-test follow-up.

@@ -77,11 +77,13 @@ airdrop-asana-snap-in/
 ├── manifest.yaml                    # Snap-in manifest (functions, keyrings, imports)
 ├── docs/
 │   ├── prd.md                       # Product requirements document
-│   └── tdd.md                       # Technical design document
+│   ├── tdd.md                       # Technical design document
+│   └── unit-test-coverage.md        # Scenario audit, defect evidence and deferred test handoff
 ├── code/
 │   ├── package.json
 │   ├── tsconfig.json                # Path aliases: @utils/*, @asana/*, @functions/*
 │   ├── jest.config.js
+│   ├── jest.unit.config.js           # Direct no-mock unit suite; excludes mapper callback group
 │   ├── .env.example
 │   ├── scripts/
 │   │   ├── deploy.sh                # Deploy (local ngrok or Lambda)
@@ -122,6 +124,7 @@ airdrop-asana-snap-in/
 │   │   │   ├── permissions-helpers.ts # Project membership → access rules extraction
 │   │   │   ├── rich-text-helpers.ts  # Bidirectional rich text: Asana HTML ↔ AirSync rich text
 │   │   │   ├── loading-helpers.ts   # Loading error handling, ID resolution via mappers
+│   │   │   ├── retry-after.ts       # RFC Retry-After parsing with explicit clock input
 │   │   │   └── serialize-error.ts   # Error serialization
 │   └── test/                        # Local test server (Express on port 8000)
 │       ├── main.ts
@@ -166,7 +169,8 @@ airdrop-asana-snap-in/
 | `code/src/utils/field-extraction-helpers.ts` | Pure data transformation: `toTimestamp`, `toDateOnly`, `extractCustomFields`, `extractSectionFromMemberships` |
 | `code/src/utils/attachment-helpers.ts` | Attachment text parsing: `extractInlineAttachmentGids`, `extractAttachmentGidFromCommentText`, `stripAssetUrlsFromText`, `extractAttachmentsFromTask` |
 | `code/src/utils/permissions-helpers.ts` | `extractPermissions` — fetches project memberships and produces access rule records per access level |
-| `code/src/utils/metadata-helpers.ts` | Metadata enrichment: custom field type mapping, section fetching, stage diagram building |
+| `code/src/utils/metadata-helpers.ts` | Metadata enrichment: custom field type mapping, section fetching, stage diagram building, exported `describeMetadataError` for error/delay conversion. Formula discriminators produce read-only text. |
+| `code/src/utils/retry-after.ts` | `parseRetryAfter(value, nowMs?)`: safe integer seconds and UTC HTTP dates; future dates round up, past/equal dates return zero, invalid/missing values return 60. Valid digit sequences above the safe integer range return an error value. |
 | `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction with task counts |
 | `code/src/utils/rich-text-helpers.ts` | Bidirectional rich text conversion: `parseAsanaRichText` (Asana HTML → AirSync rich text for extraction), `serializeToAsanaHtml` and `serializeToPlainText` (AirSync rich text → Asana HTML/plain text for loading) |
 | `code/src/utils/loading-helpers.ts` | `handleLoadingError` (429 → delay status, others → error record), `resolveExternalId` (DevRev ID → Asana GID via mappers) |
@@ -206,7 +210,7 @@ The SDK persists connector state automatically when it sends the task response; 
 - **Workspace**: `event.payload.connection_data.org_id`
 - **Project (sync unit)**: `event.payload.event_context.external_sync_unit_id`
 - **Pagination**: All list endpoints use offset-based pagination with page size 100
-- **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker returns `{ status: 'delay', delaySeconds }` so the SDK sends the phase delay event and the platform reschedules; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
+- **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (parsed `Retry-After`, or 60s if missing/invalid; valid unrepresentable delays return an error record instead) and the worker returns `{ status: 'delay', delaySeconds }` so the SDK sends the phase delay event and the platform reschedules; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
 - **Retries**: The HTTP client retries up to 3 times for network errors and 5xx responses, with exponential backoff (2s, 4s, 8s). 4xx errors, including 429, are not retried.
 
 ## Development Workflow
@@ -225,7 +229,8 @@ All commands run from the `code/` directory unless otherwise noted.
 | `npm run build` | Compile TypeScript (`rimraf dist && tsc && tsc-alias`) |
 | `npm run package` | Build and create `build.tar.gz` for Lambda deployment |
 | `npm run deploy` | Interactive deploy (local via ngrok or Lambda) |
-| `npm run test` | Run Jest unit tests |
+| `npm run test` | Run existing full Jest suite (includes mocked and integration tests) |
+| `npm run test:unit -- --runInBand` | Run only direct connector-function tests without mocks, with coverage |
 | `npm run test:server` | Start local dev server with `AIRSYNC_LOCAL_DEVELOPMENT=1` (Express on port 8000 with nodemon) |
 | `npm run lint` / `npm run lint:fix` | ESLint |
 | `npm run api-gen` | Regenerate Asana API client from OpenAPI spec |
@@ -235,6 +240,12 @@ All commands run from the `code/` directory unless otherwise noted.
 ### Dependency security
 
 Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
+
+### Normalization and rate-limit policies
+
+Formula custom fields are detected by `representation_type: formula` or `is_formula_field`; both task and metadata queries request these discriminators. Formula EDM fields are read-only text and normalization emits `display_value`. Custom-field text/display values preserve explicit empty strings while omitting null values.
+
+Both error handlers use `parseRetryAfter`: representable nonnegative integer seconds include zero; supported HTTP-date forms use UTC and ceil remaining seconds; past/equal dates return zero. Invalid, signed, fractional, nonfinite literals or missing values use 60 seconds. RFC delay-seconds permits any nonempty digit sequence: values above `Number.MAX_SAFE_INTEGER`, including digit sequences whose numeric conversion overflows, are valid but cannot be safely scheduled. The parser returns `{ error: { message } }` for these values; extraction returns that error record and loading returns `{ status: 'error', error }`, with no delay or thrown exception. This conservative failure policy prevents an early retry. All extraction delay consumers check for undefined so zero survives. Worker execution and actual rescheduling require separate component verification.
 
 ### Path Aliases
 
@@ -248,7 +259,8 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 ## Testing
 
-- **Tests**: 21 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
+- **Tests**: 25 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
+- **No-mock unit audit**: `jest.unit.config.js` selects four existing pure suites and four scenario suites (`normalization-scenarios`, `reverse-sync-scenarios`, `control-scenarios`, `metadata-permission-scenarios`). It excludes the existing `resolveExternalId callback` group containing replacement callbacks. New tests use supplied data/errors and explicit parser times; numeric reverse-sync references use the production resolver with a real SDK mapper without lookups. Coverage is written under `code/coverage/unit`; the dedicated suite reports whole-connector coverage without the full-suite 80% gate. The default configuration is unchanged. Scenario coverage, fixed defects and deferred component/static/live work are in `docs/unit-test-coverage.md`.
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
 - **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.
 - **Local integration testing**: Set `AIRSYNC_LOCAL_DEVELOPMENT=1` to enable SDK local logging and artifact copies. The local runner has a direct `@devrev/typescript-sdk` development dependency. Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
@@ -272,6 +284,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 - `docs/prd.md` — Product requirements document
 - `docs/tdd.md` — Technical design document (data mapping, API endpoints, limitations)
+- `docs/unit-test-coverage.md` — Unit scenario inventory, confirmed fixes and handoff for other test approaches
 - `README.md` — Setup, authentication (PAT/OAuth), deployment instructions
 
 ### `@devrev/airsync-sdk` SDK

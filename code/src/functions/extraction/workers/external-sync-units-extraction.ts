@@ -21,7 +21,7 @@ processExtractionTask<ExtractorState>({
     } catch (error) {
       // This phase has no *_DELAYED event, so a rate limit fails it and the user retries later.
       const { delay } = handleExtractionError(error);
-      const message = delay
+      const message = delay !== undefined
         ? `Rate limited by Asana (HTTP 429) while listing projects. Retry in ${delay} seconds.`
         : `Error paginating projects list from Asana: ${serializeError(error)}`;
       return { status: 'error', error: { message } };
