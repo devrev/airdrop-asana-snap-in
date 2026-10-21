@@ -1,0 +1,50 @@
+version: 1
+
+connector:
+  entrypoint: ../../dist/index.js
+  function: extraction
+
+stages:
+  - metadata_extraction
+
+connection_data:
+  org_id: "${ASANA_WORKSPACE_ID}"
+  org_name: Asana live metadata assertion test
+  key: "${ASANA_PAT}"
+  key_type: pat
+
+event_context:
+  external_sync_unit_id: "${ASANA_PROJECT_ID}"
+  external_sync_unit_name: Asana live metadata assertion test project
+  mode: INITIAL
+
+assertions:
+  artifacts:
+    - select:
+        filename: external_domain_metadata.jsonl.gz
+      match:
+        - count: 1
+        - path: schema_version
+          equals: [v0.2.0]
+        - path: record_types.tasks.fields.name
+          exists: true
+        - path: record_types.subtasks.fields.name
+          exists: true
+  callbacks:
+    match:
+      - count: 1
+      - contains:
+          event_type: METADATA_EXTRACTION_DONE
+  state:
+    final:
+      match:
+        - path: stateVersion
+          equals: 2
+        - path: sdkState.lastSuccessfulSyncStarted
+          exists: true
+    snapshots:
+      - select:
+          event_type: START_EXTRACTING_METADATA
+        match:
+          - path: stateVersion
+            equals: 2

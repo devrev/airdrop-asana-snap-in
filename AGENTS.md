@@ -80,6 +80,9 @@ airdrop-asana-snap-in/
 │   └── tdd.md                       # Technical design document
 ├── code/
 │   ├── package.json
+│   ├── fixtures/                    # Manifest-driven extraction scenarios
+│   │   ├── airdrop_framework_mock_orchestration/ # Offline synthetic API assertions
+│   │   └── airdrop_framework_live_assertions/    # Read-only live metadata assertions
 │   ├── tsconfig.json                # Path aliases: @utils/*, @asana/*, @functions/*
 │   ├── jest.config.js
 │   ├── .env.example
@@ -250,6 +253,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 - **Tests**: 21 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
+- **Manifest scenarios**: `npm run test:orchestration` checks mocked artifact contents, callbacks, final state, and history snapshots. `npm run test:live-assertions` runs metadata-only, read-only extraction against the configured Asana project and checks its metadata artifact, callback, and state; it requires Asana PAT/workspace/project environment variables. Treat retained runner outputs as sensitive.
 - **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.
 - **Local integration testing**: Set `AIRSYNC_LOCAL_DEVELOPMENT=1` to enable SDK local logging and artifact copies. The local runner has a direct `@devrev/typescript-sdk` development dependency. Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
 

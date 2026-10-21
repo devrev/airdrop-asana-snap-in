@@ -410,3 +410,9 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 ### Migration integration verification
 
 `code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; and real loader create/update/429/error outcomes. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.
+
+### Manifest-runner assertion scenarios
+
+`code/fixtures/airdrop_framework_mock_orchestration/manifest.yaml` runs the full extraction lifecycle against the standalone runner and synthetic Asana mock. Post-run checks validate 2,000 extracted task records and unique IDs in the gzip JSONL artifact, metadata content, lifecycle callbacks, final state, and a selected data-stage state-history snapshot. Run with `cd code && npm run test:orchestration`; this makes no Asana network requests.
+
+`code/fixtures/airdrop_framework_live_assertions/manifest.yaml` is a metadata-only live integration check. It performs read-only metadata requests against the project configured by `ASANA_PAT`, `ASANA_WORKSPACE_ID`, and `ASANA_PROJECT_ID`; it does not extract tasks or attachments and does not mutate Asana data. It checks the returned metadata artifact, callback, and saved state. Run with `cd code && npm run test:live-assertions`. Runner output is retained locally and must be treated as sensitive workspace data. These runner scenarios complement, rather than replace, the isolated Jest integration tests.

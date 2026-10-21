@@ -27,3 +27,52 @@ mock_server:
   startup_timeout_ms: 30000
 
 wait_for_delays: false
+
+assertions:
+  artifacts:
+    - select:
+        filename: tasks.jsonl.gz
+      scope: aggregate
+      match:
+        - count: 2000
+        - path: id
+          unique: true
+        - contains:
+            data:
+              name: Mock Asana task 0
+    - select:
+        filename: external_domain_metadata.jsonl.gz
+      match:
+        - count: 1
+        - path: schema_version
+          equals: [v0.2.0]
+        - path: record_types.tasks.fields.name
+          exists: true
+  callbacks:
+    match:
+      - count: 4
+      - contains:
+          event_type: EXTERNAL_SYNC_UNIT_EXTRACTION_DONE
+      - contains:
+          event_type: METADATA_EXTRACTION_DONE
+      - contains:
+          event_type: DATA_EXTRACTION_DONE
+      - contains:
+          event_type: ATTACHMENT_EXTRACTION_DONE
+  state:
+    final:
+      match:
+        - path: connectorState.tasks.completed
+          equals: true
+        - path: connectorState.tasks.total
+          equals: 2000
+        - path: connectorState.users.total
+          equals: 2000
+    snapshots:
+      - select:
+          event_type: START_EXTRACTING_DATA
+        match:
+          - path: connectorState.tasks.completed
+            equals: true
+          - path: connectorState.tasks.total
+            equals: 2000

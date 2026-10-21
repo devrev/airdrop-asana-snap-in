@@ -156,7 +156,16 @@ cd code
 npm run test:orchestration
 ```
 
-This runs external-sync-unit, metadata, data, and attachment phases through the framework runner and checks for the final `ATTACHMENT_EXTRACTION_DONE` callback. The mock config has no proxy target, so no Asana credentials or network access are needed. Synthetic tasks intentionally contain no downloadable attachments, so this covers orchestration through the attachment phase, not file streaming. For just external-sync-unit extraction, run `npm run test:fixture`. To run any other manifest fixture, use `npm run test:scenario -- <fixture-directory>`; it builds the connector first. `test:scenario` invokes the runner with `npx --package=<local-runner-directory>`, defaulting to the adjacent `airdrop-snap-in-mock-dependencies` checkout. Set `AIRDROP_TEST_RUNNER_ROOT` to another local package directory if needed; once the runner is published, this package spec can be changed to its npm package name. The external mock binary must be available on `PATH` (or set `AIRDROP_EXTERNAL_API_MOCK`).
+This runs external-sync-unit, metadata, data, and attachment phases through the framework runner against deterministic synthetic Asana data. Inline post-run assertions check the task JSONL gzip artifact (record count and unique IDs), enriched metadata, all four callbacks, final extraction state, and a selected state-history snapshot. The mock config has no proxy target, so no Asana credentials or network access are needed. Synthetic tasks intentionally contain no downloadable attachments, so this covers orchestration through the attachment phase, not file streaming. For just external-sync-unit extraction, run `npm run test:fixture`. The external mock binary must be available on `PATH` (or set `AIRDROP_EXTERNAL_API_MOCK`).
+
+A separate metadata-only integration scenario can validate the same runner assertions against the configured live Asana API, without creating or updating Asana data and without extracting tasks or attachments:
+
+```bash
+cd code
+npm run test:live-assertions
+```
+
+It requires `ASANA_PAT`, `ASANA_WORKSPACE_ID`, and `ASANA_PROJECT_ID` in `code/.env` or the environment. It performs read-only metadata requests for that project and checks the returned metadata artifact, callback, and state. Run outputs are retained locally (default `/tmp/airdrop-asana-tests`) and may contain workspace metadata; protect and prune them appropriately. To run any other manifest fixture, use `npm run test:scenario -- <fixture-directory>`; it builds the connector first. `test:scenario` invokes the runner with `npx --package=<local-runner-directory>`, defaulting to the adjacent `airdrop-snap-in-mock-dependencies` checkout. Set `AIRDROP_TEST_RUNNER_ROOT` to another local package directory if needed; once the runner is published, this package spec can be changed to its npm package name.
 
 ### 7. Deploy
 
