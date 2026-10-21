@@ -345,6 +345,12 @@ Asana provides task descriptions and comments as HTML (`html_notes`, `html_text`
 
 **Reverse (loading):** Rich text from DevRev is converted to Asana HTML via `serializeToAsanaHtml` in `rich-text-serializer.ts`. Text is HTML-escaped and newlines are converted to `<br>` tags. Mentions are rendered as `<a data-asana-gid="..." data-asana-type="user">` tags. The output is wrapped in a `<body>` element. Plain text extraction is also available via `serializeToPlainText`.
 
+## 2.9 Coverage Reporting
+
+Jest generates `code/coverage/lcov.info` during `npm test` and enforces the configured 80% global coverage thresholds. It uses the V8 coverage provider so `ts-jest` source maps resolve to valid source paths in the LCOV report. After lint, tests, and build pass, `.github/workflows/ci.yml` uploads this report to Coveralls for pull requests and pushes to `main`. The upload uses the workflow's `GITHUB_TOKEN` and `code` as its source base path so LCOV entries resolve to repository files.
+
+The repository must be enabled in the Coveralls GitHub integration for coverage reports and pull request checks to appear. No additional repository secret is required.
+
 # 3. Limitations
 
 1. **Comment updates:** Asana API does not support updating or deleting comments (stories). Reverse sync for comments is create-only; update requests are silently treated as no-ops (return success without action).
