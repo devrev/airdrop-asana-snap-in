@@ -405,6 +405,8 @@ Mapper lookups return an unwrapped response or null. `resolveExternalId` logs an
 
 `npm run test:server` sets `AIRSYNC_LOCAL_DEVELOPMENT=1` for the local test server. Its direct `@devrev/typescript-sdk` development dependency provides snap-in runner types.
 
+The dependency lockfile selects `follow-redirects` 1.16.1 for Axios and `ip-address` 10.7.4 for the OpenAPI generator's proxy chain. These security patches satisfy the existing parent ranges and require no connector API changes.
+
 Upgrade between runs after v1 workers finish. Once v2 persists state, rollback requires a verified saved v1 state with the v1 connector, or explicit reset/reinitialization and reimport; draining alone does not restore v1 compatibility.
 
 ### Migration integration verification
