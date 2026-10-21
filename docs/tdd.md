@@ -347,7 +347,7 @@ Asana provides task descriptions and comments as HTML (`html_notes`, `html_text`
 
 ## 2.9 Coverage Reporting
 
-Jest generates `code/coverage/lcov.info` during `npm test` and enforces the configured 80% global coverage thresholds. It uses the V8 coverage provider so `ts-jest` source maps resolve to valid source paths in the LCOV report. After lint, tests, and build pass, `.github/workflows/ci.yml` downloads the official Coveralls reporter v0.6.22, verifies its pinned SHA-256 checksum, and uploads this report for pull requests and pushes to `main`. The reporter runs from `code` with `--base-path .` and the workflow's `GITHUB_TOKEN`. This uses standard shell steps because the organization's Actions policy blocks the third-party Coveralls action.
+Jest generates `code/coverage/lcov.info` during `npm test` and enforces the configured 80% global coverage thresholds. It uses the V8 coverage provider so `ts-jest` source maps resolve to valid source paths in the LCOV report. After lint, tests, and build pass, `.github/workflows/ci.yml` uploads this report to Coveralls for pull requests and pushes to `main`. The upload uses the workflow's `GITHUB_TOKEN` and `code` as its source base path so LCOV entries resolve to repository files.
 
 Enable `devrev/airsync-asana-snap-in` in the Coveralls GitHub integration for coverage reports and pull request checks to appear. The README links to its Coveralls page and displays the coverage badge for `main`. No additional repository secret is required.
 

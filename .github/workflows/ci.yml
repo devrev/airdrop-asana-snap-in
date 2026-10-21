@@ -25,13 +25,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - name: Install Coveralls reporter
-        working-directory: ${{ runner.temp }}
-        run: |
-          curl --fail --location --retry 3 https://github.com/coverallsapp/coverage-reporter/releases/download/v0.6.22/coveralls-linux-x86_64 --output coveralls
-          echo '34fcaf347627307e505ec207acd617c3bfc6c3e2684b22e760be29eb339c36d5  coveralls' | sha256sum --check
-          chmod +x coveralls
       - name: Upload coverage to Coveralls
-        env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: '"$RUNNER_TEMP/coveralls" report coverage/lcov.info --base-path . --format lcov'
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: code/coverage/lcov.info
+          base-path: code
