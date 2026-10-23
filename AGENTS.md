@@ -238,6 +238,8 @@ Run `snyk test --dev` for the complete dependency tree and `snyk test` for produ
 
 The lockfile also selects `follow-redirects` 1.16.1 for Axios callers and `ip-address` 10.7.4 for the OpenAPI generator's proxy dependencies, fixing their Snyk advisories within the existing parent version ranges.
 
+The lockfile selects `body-parser` 1.20.9 for the local development server and Express, fixing CVE-2026-111181 (compressed request bodies with trailing data can crash the process). This dependency is used by development tooling.
+
 ### Path Aliases
 
 The project uses TypeScript path aliases configured in `tsconfig.json`:
