@@ -1809,6 +1809,27 @@ describe('extractTasks', () => {
     jest.restoreAllMocks();
   });
 
+  it.each([404, 500])('skips a task HTTP %i failure and extracts the next task', async (status) => {
+    const client = createMockClient({ taskPages: [{ tasks: [{ gid: 'bad' }, { gid: 'good' }] }] });
+    client.getStoriesForTask.mockRejectedValueOnce({ isAxiosError: true, response: { status } });
+    const adapter = createMockAdapter();
+    await extractTasks(client, adapter);
+    expect(client.getStoriesForTask).toHaveBeenCalledTimes(2);
+    expect(mockPush).toHaveBeenCalledWith([expect.objectContaining({ gid: 'good' })]);
+    expect(adapter.state.tasks.total).toBe(1);
+  });
+
+  it.each([401, 403, 429])('stops before the next task on HTTP %i and preserves the cursor', async (status) => {
+    const client = createMockClient({ taskPages: [{ tasks: [{ gid: 'bad' }, { gid: 'later' }] }] });
+    const error = { isAxiosError: true, response: { status, headers: { 'retry-after': '30' } } };
+    client.getStoriesForTask.mockRejectedValueOnce(error);
+    const adapter = createMockAdapter();
+    await expect(extractTasks(client, adapter)).rejects.toBe(error);
+    expect(client.getStoriesForTask).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(adapter.state.tasks.lastExtractedTaskIndex).toBe(-1);
+  });
+
   it('should extract tasks from a single page', async () => {
     const client = createMockClient({
       taskPages: [{ tasks: [{ gid: 't1', name: 'Task 1' }, { gid: 't2', name: 'Task 2' }] }],

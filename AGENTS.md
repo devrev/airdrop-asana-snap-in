@@ -170,6 +170,7 @@ airdrop-asana-snap-in/
 | `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction with task counts |
 | `code/src/utils/rich-text-helpers.ts` | Bidirectional rich text conversion: `parseAsanaRichText` (Asana HTML → AirSync rich text for extraction), `serializeToAsanaHtml` and `serializeToPlainText` (AirSync rich text → Asana HTML/plain text for loading) |
 | `code/src/utils/loading-helpers.ts` | `handleLoadingError` (429 → delay status, others → error record), `resolveExternalId` (DevRev ID → Asana GID via mappers) |
+| `code/src/utils/error-helpers.ts` | Classifies Asana API 401/403 as common access errors, excluding external file-download URLs |
 | `code/src/asana/constants.ts` | Item type enums (incl. `GROUPS`, `GROUP_MEMBERSHIPS`, `ACCESS_RULES`), link type constants, access level constants, `MAX_SUBTASK_DEPTH = 2` |
 | `manifest.yaml` | Snap-in manifest — functions (`extraction`, `loading`), keyrings (OAuth2 + PAT), imports, service account scopes |
 
@@ -248,7 +249,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 ## Testing
 
-- **Tests**: 21 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
+- **Tests**: 22 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
 - **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.
 - **Local integration testing**: Set `AIRSYNC_LOCAL_DEVELOPMENT=1` to enable SDK local logging and artifact copies. The local runner has a direct `@devrev/typescript-sdk` development dependency. Test server in `code/test/` (Express on port 8000) simulates the AirSync platform for local development with ngrok.
@@ -265,6 +266,22 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 - **Metadata timeout**: The SDK returns metadata progress on soft timeout. The phase keeps no state, so `CONTINUE_EXTRACTING_METADATA` rebuilds the metadata from scratch.
 - **State size**: Snap-in state must be smaller than 1 MB (~500,000 characters).
 - **Single response**: Each worker invocation returns one `TaskResult`; the SDK sends its response to AirSync.
+
+### Permission failures
+
+Asana API HTTP 401 and 403 map to `EXTERNAL_SYSTEM_NO_ACCESS` and
+`EXTERNAL_SYSTEM_NO_PERMISSION` via `code/src/utils/error-helpers.ts`.
+Workers return these codes in the phase error; the SDK serializes the message
+as exactly `ERROR_CODE=<code>` for the snap-in manager. Optional section, tag,
+comment attachment and sync-unit checks must propagate these failures.
+Ordinary individual task/attachment HTTP failures are logged and skipped;
+project/workspace listing failures still fail the phase, and 429 delays it.
+Signed file-download URL failures do not imply revoked Asana access.
+
+Stopping loading and attachment streaming on these codes requires the paired
+AirSync SDK fix; release that SDK change and update the connector's SDK pin
+before deploying this connector change.
+
 
 ## Related Documentation
 

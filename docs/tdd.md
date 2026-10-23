@@ -274,11 +274,27 @@ The `AsanaClient` uses `axios-retry` (3 attempts, exponential backoff 2s, 4s, 8s
 | 200  | Success               | Process response                             |
 | 201  | Created               | Process response (loading)                   |
 | 400  | Bad Request           | Log and report error                         |
-| 401  | Unauthorized          | Token expired or invalid; re-authenticate    |
-| 403  | Forbidden             | Insufficient permissions; log and skip       |
+| 401  | Unauthorized          | Stop with `EXTERNAL_SYSTEM_NO_ACCESS`    |
+| 403  | Forbidden             | Stop with `EXTERNAL_SYSTEM_NO_PERMISSION`       |
 | 404  | Not Found             | Object deleted or inaccessible; log and skip |
 | 429  | Too Many Requests     | Emit `*_DELAYED` (ESU phase: fail)           |
 | 500  | Internal Server Error | Retry with exponential backoff               |
+
+### Permission failures
+
+Asana API HTTP 401 and 403 map to `EXTERNAL_SYSTEM_NO_ACCESS` and
+`EXTERNAL_SYSTEM_NO_PERMISSION` via `code/src/utils/error-helpers.ts`.
+Workers return these codes in the phase error; the SDK serializes the message
+as exactly `ERROR_CODE=<code>` for the snap-in manager. Optional section, tag,
+comment attachment and sync-unit checks must propagate these failures.
+Ordinary individual task/attachment HTTP failures are logged and skipped;
+project/workspace listing failures still fail the phase, and 429 delays it.
+Signed file-download URL failures do not imply revoked Asana access.
+
+Stopping loading and attachment streaming on these codes requires the paired
+AirSync SDK fix; release that SDK change and update the connector's SDK pin
+before deploying this connector change.
+
 
 ## 2.5 Metadata Extraction
 
@@ -382,6 +398,7 @@ Loading (DevRev -> Asana) is implemented for tasks, subtasks, comments, links, a
 | `code/src/asana/data-denormalization.ts`                 | `denormalizeTask`, `denormalizeComment`, `denormalizeLink` — converts DevRev data to Asana API format |
 | `code/src/utils/rich-text-helpers.ts`                    | `serializeToAsanaHtml`, `serializeToPlainText` — rich text to Asana HTML |
 | `code/src/utils/loading-helpers.ts`                      | `handleLoadingError` (429 → delay), `resolveExternalId` (DevRev ID → Asana GID via mappers), `resolveRef` (reference object → Asana GID), `extractExternalIdFromRef` (extract external ID from SDK reference objects) |
+| `code/src/utils/error-helpers.ts` | Classifies Asana API 401/403 as common access errors, excluding external file-download URLs |
 | `code/src/utils/field-extraction-helpers.ts`             | `toTimestamp`, `toDateOnly`, `extractCustomFields`, `extractSectionFromMemberships` — pure data transformation utilities |
 | `code/src/utils/permissions-helpers.ts`                  | `extractPermissions` — fetches project memberships, groups by access level, produces access rule records. Groups and group memberships completed state is also set here. |
 | `code/src/functions/loading/index.ts`                    | Loading orchestrator — defines `LoaderState`, calls `spawn()`        |
@@ -409,4 +426,4 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 
 ### Migration integration verification
 
-`code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; and real loader create/update/429/error outcomes. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.
+`code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; real loader create/update/429/error outcomes; common access codes across all six phases; and recoverable task/attachment failures. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.

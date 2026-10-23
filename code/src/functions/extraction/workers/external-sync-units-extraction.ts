@@ -13,25 +13,19 @@ processExtractionTask<ExtractorState>({
 
     const asanaClient = new AsanaClient(adapter.event);
 
-    await checkUserWorkspaceRole(asanaClient);
-
-    let asanaProjects;
     try {
-      asanaProjects = await fetchAllProjects(asanaClient);
+      await checkUserWorkspaceRole(asanaClient);
+      const asanaProjects = await fetchAllProjects(asanaClient);
+      const externalSyncUnits = await buildExternalSyncUnits(asanaProjects, asanaClient);
+      await adapter.getRepo(AirSyncDefaultItemTypes.EXTERNAL_SYNC_UNITS)?.push(externalSyncUnits);
+      return { status: 'success' };
     } catch (error) {
       // This phase has no *_DELAYED event, so a rate limit fails it and the user retries later.
-      const { delay } = handleExtractionError(error);
+      const { delay, error: extractionError } = handleExtractionError(error);
       const message = delay
         ? `Rate limited by Asana (HTTP 429) while listing projects. Retry in ${delay} seconds.`
         : `Error paginating projects list from Asana: ${serializeError(error)}`;
-      return { status: 'error', error: { message } };
+      return { status: 'error', error: { ...extractionError, message } };
     }
-    console.log(`Fetched ${asanaProjects.length} projects from Asana workspace. Building sync units...`);
-
-    const externalSyncUnits = await buildExternalSyncUnits(asanaProjects, asanaClient);
-    console.log(`External sync unit extraction complete. ${externalSyncUnits.length} projects available for sync.`);
-
-    await adapter.getRepo(AirSyncDefaultItemTypes.EXTERNAL_SYNC_UNITS)?.push(externalSyncUnits);
-    return { status: 'success' };
   },
 });

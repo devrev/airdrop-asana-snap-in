@@ -3,6 +3,7 @@ import { ExternalSyncUnit } from '@devrev/airsync-sdk';
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
 import type { AsanaProject } from '@asana/types';
+import { getAsanaAccessErrorCode } from '@utils/error-helpers';
 import { serializeError } from '@utils/serialize-error';
 
 /** Check and log warnings if the authorizing user lacks admin access to the workspace. */
@@ -37,6 +38,7 @@ export async function checkUserWorkspaceRole(asanaClient: AsanaClient): Promise<
       );
     }
   } catch (error) {
+    if (getAsanaAccessErrorCode(error)) throw error;
     console.warn(`Unable to check workspace membership role: ${serializeError(error)}`);
   }
 }
@@ -77,6 +79,7 @@ export async function buildExternalSyncUnits(
           const responseProject = await asanaClient.getProjectTaskCount(project.gid!);
           itemCount = responseProject?.data?.data?.num_tasks ?? 0;
         } catch (error) {
+          if (getAsanaAccessErrorCode(error)) throw error;
           console.warn(`Error fetching project task count for project ${project.gid}: ${serializeError(error)}`);
         }
 

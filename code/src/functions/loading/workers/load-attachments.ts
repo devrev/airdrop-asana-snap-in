@@ -2,6 +2,7 @@ import type { ExternalSystemAttachment, ExternalSystemItemLoadingParams, Externa
 import { processLoadingTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
+import { getAsanaAccessErrorCode } from '@utils/error-helpers';
 import { handleLoadingError, resolveExternalId } from '@utils/loading-helpers';
 import { serializeError } from '@utils/serialize-error';
 
@@ -36,6 +37,7 @@ async function reparentAttachmentToComment(
     await asanaClient.updateTaskComment(commentGid, { data: { html_text: html } });
     console.log(`Re-parented attachment ${attachmentGid} ("${fileName}") onto comment ${commentGid}.`);
   } catch (error) {
+    if (getAsanaAccessErrorCode(error)) throw error;
     console.warn(
       `Could not re-parent attachment ${attachmentGid} ("${fileName}") onto comment ${commentGid}; ` +
         `it stays attached to the task: ${serializeError(error)}`

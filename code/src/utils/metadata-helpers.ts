@@ -13,12 +13,12 @@ import { type ExtractListResponse, handleExtractionError } from '@utils/data-hel
 import { serializeError } from '@utils/serialize-error';
 
 function describeMetadataError(action: string, error: unknown): ExtractListResponse {
-  const { delay } = handleExtractionError(error);
+  const { delay, error: extractionError } = handleExtractionError(error);
   if (delay) {
     return { delay };
   }
 
-  return { error: { message: `Error ${action}: ${serializeError(error)}` } };
+  return { error: { ...extractionError, message: `Error ${action}: ${serializeError(error)}` } };
 }
 
 function mapAsanaTypeToMetadataType(asanaType: string): FieldType {

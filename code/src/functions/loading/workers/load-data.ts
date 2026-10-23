@@ -9,6 +9,7 @@ import { processLoadingTask } from '@devrev/airsync-sdk';
 import { AsanaClient } from '@asana/api-client';
 import { ItemType, LinkType } from '@asana/constants';
 import { denormalizeComment, denormalizeLink, denormalizeTask } from '@asana/data-denormalization';
+import { getAsanaAccessErrorCode } from '@utils/error-helpers';
 import { toTimestamp } from '@utils/field-extraction-helpers';
 import { handleLoadingError, resolveExternalId, resolveRef } from '@utils/loading-helpers';
 import { serializeError } from '@utils/serialize-error';
@@ -43,6 +44,7 @@ async function createTask({
       try {
         await asanaClient.addTaskToSection(sectionGid, { data: { task: taskGid } });
       } catch (error) {
+        if (getAsanaAccessErrorCode(error)) throw error;
         console.warn(`Task ${taskGid} (devrevId=${item.id.devrev}) created but section assignment to ${sectionGid} failed: ${serializeError(error)}`);
       }
     }
@@ -52,7 +54,8 @@ async function createTask({
       for (const tagGid of tagGids) {
         try {
           await asanaClient.addTagToTask(taskGid, { data: { tag: tagGid } });
-        } catch {
+        } catch (error) {
+          if (getAsanaAccessErrorCode(error)) throw error;
           failedTags.push(tagGid);
         }
       }
@@ -90,6 +93,7 @@ async function updateTask({
       try {
         await asanaClient.addTaskToSection(sectionGid, { data: { task: externalId } });
       } catch (error) {
+        if (getAsanaAccessErrorCode(error)) throw error;
         console.warn(`Task ${externalId} (devrevId=${item.id.devrev}) updated but section move to ${sectionGid} failed: ${serializeError(error)}`);
       }
     }
@@ -99,7 +103,8 @@ async function updateTask({
       for (const tagGid of tagGids) {
         try {
           await asanaClient.addTagToTask(externalId, { data: { tag: tagGid } });
-        } catch {
+        } catch (error) {
+          if (getAsanaAccessErrorCode(error)) throw error;
           failedTags.push(tagGid);
         }
       }
@@ -149,7 +154,8 @@ async function createSubtask({
       for (const tagGid of tagGids) {
         try {
           await asanaClient.addTagToTask(subtaskGid, { data: { tag: tagGid } });
-        } catch {
+        } catch (error) {
+          if (getAsanaAccessErrorCode(error)) throw error;
           failedTags.push(tagGid);
         }
       }

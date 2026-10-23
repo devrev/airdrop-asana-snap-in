@@ -14,6 +14,7 @@ import {
   extractInlineAttachmentGids,
   stripAssetUrlsFromText,
 } from '@utils/attachment-helpers';
+import { getAsanaAccessErrorCode } from '@utils/error-helpers';
 import { serializeError } from '@utils/serialize-error';
 
 import { ExtractorState, initialState } from '../functions/extraction/index';
@@ -66,8 +67,9 @@ export function handleExtractionError(error: unknown): ExtractListResponse {
     return { delay: retryAfter };
   }
 
+  const code = getAsanaAccessErrorCode(error);
   const errorMessage = `Error while extracting data: ${serializeError(error)}`;
-  return { error: { message: errorMessage } };
+  return { error: { message: errorMessage, ...(code && { code }) } };
 }
 
 /** Asana offset tokens expire after a while, so a token saved in state can be dead by the next invocation. */
@@ -531,16 +533,24 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: Extraction
         links: [],
       };
 
-      await extractTaskWithSubtasks(
-        projectTasks[i],
-        asanaClient,
-        asanaClient.projectId,
-        buffer,
-        adapter,
-        0,
-        extractFrom,
-        extractTo
-      );
+      try {
+        await extractTaskWithSubtasks(
+          projectTasks[i],
+          asanaClient,
+          asanaClient.projectId,
+          buffer,
+          adapter,
+          0,
+          extractFrom,
+          extractTo
+        );
+      } catch (error) {
+        const result = handleExtractionError(error);
+        if (result.delay || result.error?.code || !axios.isAxiosError(error)) throw error;
+        console.warn(`Skipping task ${projectTasks[i].gid}: ${serializeError(error)}`);
+        adapter.state.tasks.lastExtractedTaskIndex = i;
+        continue;
+      }
 
       if (buffer.tasks.length > 0) {
         await adapter.getRepo(ItemType.TASKS)?.push(buffer.tasks);

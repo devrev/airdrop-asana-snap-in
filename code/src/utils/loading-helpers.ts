@@ -1,6 +1,7 @@
 import type { ExternalSystemItemLoadingResponse, Mappers } from '@devrev/airsync-sdk';
 import axios from 'axios';
 
+import { getAsanaAccessErrorCode } from '@utils/error-helpers';
 import { serializeError } from '@utils/serialize-error';
 
 export type IdResolver = (devrevId: string) => Promise<string | null>;
@@ -47,7 +48,8 @@ export function handleLoadingError(error: unknown): Extract<ExternalSystemItemLo
     return { status: 'delay', delaySeconds: retryAfter };
   }
 
-  return { status: 'error', error: { message: `Error during loading: ${serializeError(error)}` } };
+  const code = getAsanaAccessErrorCode(error);
+  return { status: 'error', error: { message: `Error during loading: ${serializeError(error)}`, ...(code && { code }) } };
 }
 
 /** Look up the external (Asana) ID for a given DevRev ID via the sync mapper. */

@@ -150,7 +150,7 @@ describe('SDK v2 migration over HTTP', () => {
       const { callback } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
       expect(callback.event_type).toBe(expected);
       if (status === 429) expect(callback.event_data.delay).toBe(37);
-      else expect(callback.event_data.error?.message).toContain('Metadata unavailable');
+      else expect(callback.event_data.error?.message).toBe('ERROR_CODE=EXTERNAL_SYSTEM_NO_PERMISSION');
       expect(server.getRequestCount('GET', fieldsPath)).toBe(1);
       expect(server.getRequestCount('GET', sectionsPath)).toBe(0);
       expect(server.getRequestCount('POST', '/file-upload-url')).toBe(0);
@@ -286,4 +286,102 @@ describe('SDK v2 migration over HTTP', () => {
     expect(state?.sdkState.fromDevRev).toMatchObject({ filesToLoad: [{ lineToProcess: 0, completed: false }] });
     expect(server.getRequestCount('POST', '/api/1.0/tasks')).toBe(0);
   });
+  it.each([401, 403])('permission failure metadata HTTP %i', async (status) => {
+    server.setRoute({ method: 'GET', path: fieldsPath, status, body: { errors: [{ message: 'Auth audit rejection' }] } });
+    const { callback } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
+    expect(callback.event_type).toBe('METADATA_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+  it.each([401, 403])('permission failure data HTTP %i', async (status) => {
+    server.setRoute({ method: 'GET', path: usersPath, status, body: { errors: [{ message: 'Auth audit rejection' }] } });
+    const { callback } = await runWorker('data-extraction');
+    expect(callback.event_type).toBe('DATA_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+  it.each([401, 403])('permission failure ESU HTTP %i', async (status) => {
+    server.setRoute({ method: 'GET', path: '/api/1.0/workspaces/workspace/projects', status, body: { errors: [{ message: 'Auth audit rejection' }] } });
+    const { callback } = await runWorker('external-sync-units-extraction', event(EventType.StartExtractingExternalSyncUnits));
+    expect(callback.event_type).toBe('EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+  it.each([401, 403])('permission failure reverse data HTTP %i', async (status) => {
+    serveLoaderFile();
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 404 });
+    server.setRoute({ method: 'POST', path: '/api/1.0/tasks', status, body: { errors: [{ message: 'Auth audit rejection' }] } });
+    const { callback } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+    expect(server.getRequestCount('POST', '/api/1.0/tasks')).toBe(1);
+    expect(callback.event_type).toBe('DATA_LOADING_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+  it.each([401, 403])('permission failure extraction attachments HTTP %i', async (status) => {
+    const attachment = { id: 'auth-file', parent_id: 'task', file_name: 'auth.txt', url: 'https://unused.invalid' };
+    server.setRoute({ method: 'GET', path: '/internal/airdrop.artifacts.download-url', status: 200, body: { download_url: `${server.baseUrl}/auth-metadata` } });
+    server.setRoute({ method: 'GET', path: '/auth-metadata', status: 200, bodyBuffer: gzipSync(`${JSON.stringify(attachment)}\n`) });
+    server.setRoute({ method: 'GET', path: '/api/1.0/attachments/auth-file', status, body: { errors: [{ message: 'Auth audit rejection' }] } });
+    seedState({ ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id', toDevRev: { deferredSsorArtifacts: [], attachmentsMetadata: { artifactIds: ['metadata'], lastProcessed: 0, lastProcessedAttachmentsIdsList: [] } } });
+    const { callback } = await runWorker('attachments-extraction', event(EventType.StartExtractingAttachments));
+    expect(server.getRequestCount('GET', '/api/1.0/attachments/auth-file')).toBe(1);
+    expect(callback.event_type).toBe('ATTACHMENT_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+  it.each([401, 403])('permission failure reverse attachments HTTP %i', async (status) => {
+    const item = { id: { devrev: 'attachment-devrev' }, parent_reference_id: 'parent-devrev', file_name: 'auth.txt', url: `${server.baseUrl}/auth-file` };
+    server.setRoute({ method: 'GET', path: '/internal/airdrop.artifacts.download-url', status: 200, body: { download_url: `${server.baseUrl}/auth-loader-file` } });
+    server.setRoute({ method: 'GET', path: '/auth-loader-file', status: 200, bodyBuffer: gzipSync(`${JSON.stringify(item)}\n`) });
+    server.setRoute({ method: 'GET', path: '/auth-file', status: 200, bodyBuffer: Buffer.from('synthetic') });
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 200, body: { sync_mapper_record: { id: 'mapper-parent', external_ids: ['12345'] } } });
+    server.setRoute({ method: 'POST', path: '/api/1.0/attachments', status, body: { errors: [{ message: 'Auth audit rejection' }] } });
+    seedState({ ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id', fromDevRev: { filesToLoad: [{ id: 'batch', file_name: 'attachments.jsonl', itemType: 'attachment', count: 1, lineToProcess: 0, completed: false }] } });
+    const { callback } = await runWorker('load-attachments', event(EventType.ContinueLoadingAttachments));
+    expect(server.getRequestCount('POST', '/api/1.0/attachments')).toBe(1);
+    expect(callback.event_type).toBe('ATTACHMENT_LOADING_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+
+  it.each([401, 403])('preserves access errors from task section assignment HTTP %i', async (status) => {
+    serveLoaderFile({ name: 'Task', section: '123' });
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 404 });
+    server.setRoute({ method: 'POST', path: '/api/1.0/tasks', status: 200,
+      body: { data: { gid: '456' } } });
+    server.setRoute({ method: 'POST', path: '/api/1.0/sections/123/addTask', status,
+      body: { errors: [{ message: 'No section access' }] } });
+    const { callback } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+    expect(server.getRequestCount('POST', '/api/1.0/sections/123/addTask')).toBe(1);
+    expect(callback.event_type).toBe('DATA_LOADING_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+  });
+
+  it('keeps an ordinary task loading error recoverable', async () => {
+    serveLoaderFile();
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 404 });
+    server.setRoute({ method: 'POST', path: '/api/1.0/tasks', status: 404 });
+    const { callback } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+    expect(callback.event_type).toBe('DATA_LOADING_DONE');
+    expect(callback.event_data.reports).toEqual([{ item_type: 'tasks', failed: 1 }]);
+  });
+
+  it.each([401, 403])('preserves access errors from workspace role checks HTTP %i', async (status) => {
+    server.setRoute({ method: 'GET', path: '/api/1.0/users/me/workspace_memberships', status });
+    const { callback } = await runWorker('external-sync-units-extraction', event(EventType.StartExtractingExternalSyncUnits));
+    expect(callback.event_type).toBe('EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS' : 'EXTERNAL_SYSTEM_NO_PERMISSION'}`);
+    expect(server.getRequestCount('GET', '/api/1.0/workspaces/workspace/projects')).toBe(0);
+  });
+
+  it.each([['asana', 404], ['download', 403]])('skips an individual attachment %s HTTP %i failure', async (source, status) => {
+    const attachment = { id: 'recoverable', parent_id: 'task', file_name: 'file.txt', url: 'https://unused.invalid' };
+    server.setRoute({ method: 'GET', path: '/internal/airdrop.artifacts.download-url', status: 200,
+      body: { download_url: `${server.baseUrl}/attachment-metadata` } });
+    server.setRoute({ method: 'GET', path: '/attachment-metadata', status: 200,
+      bodyBuffer: gzipSync(`${JSON.stringify(attachment)}\n`) });
+    server.setRoute({ method: 'GET', path: '/api/1.0/attachments/recoverable', status: source === 'asana' ? status as number : 200,
+      body: { data: { download_url: `${server.baseUrl}/expired-download` } } });
+    server.setRoute({ method: 'GET', path: '/expired-download', status: status as number });
+    seedState({ ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id',
+      toDevRev: { deferredSsorArtifacts: [], attachmentsMetadata: { artifactIds: ['metadata'], lastProcessed: 0, lastProcessedAttachmentsIdsList: [] } } });
+    const { callback } = await runWorker('attachments-extraction', event(EventType.StartExtractingAttachments));
+    expect(callback.event_type).toBe('ATTACHMENT_EXTRACTION_DONE');
+    expect(callback.event_data.error).toBeUndefined();
+  });
+
 });
