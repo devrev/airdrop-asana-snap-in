@@ -164,3 +164,5 @@ npm run deploy
 2. Select the Asana connector
 3. **For PAT:** Enter a connection name and paste the generated PAT token
 4. **For OAuth:** Choose **Asana OAuth Connection**, authorize in the popup window, and proceed with the data import
+
+
