@@ -236,10 +236,6 @@ All commands run from the `code/` directory unless otherwise noted.
 
 Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
 
-The lockfile also selects `follow-redirects` 1.16.1 for Axios callers and `ip-address` 10.7.4 for the OpenAPI generator's proxy dependencies, fixing their Snyk advisories within the existing parent version ranges.
-
-The lockfile selects `body-parser` 1.20.9 for the local development server and Express, fixing CVE-2026-111181 (compressed request bodies with trailing data can crash the process). This dependency is used by development tooling.
-
 ### Path Aliases
 
 The project uses TypeScript path aliases configured in `tsconfig.json`:
