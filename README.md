@@ -1,6 +1,6 @@
 # Asana AirSync Connector
 
-![Coverage](https://img.shields.io/badge/coverage-0%25-red)
+[![Coverage Status](https://coveralls.io/repos/github/devrev/airsync-asana-snap-in/badge.svg?branch=main)](https://coveralls.io/github/devrev/airsync-asana-snap-in?branch=main)
 
 Asana AirSync connector for DevRev. This is the source of the snap-in published to the DevRev marketplace. See the [Asana AirSync documentation](https://developer.devrev.ai/snap-in-development/tutorials/airsync/asana) for detailed setup and usage instructions.
 

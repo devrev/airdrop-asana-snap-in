@@ -6,7 +6,7 @@
 | Author        | Radovan Jorgić                                                                             |
 | Status        | Beta — extraction (incl. permissions) and loading complete for all P0 record types         |
 | Created On    | December 2025                                                                              |
-| Repository    | [airdrop-asana-snap-in](https://github.com/devrev/airdrop-asana-snap-in)                   |
+| Repository    | [airsync-asana-snap-in](https://github.com/devrev/airsync-asana-snap-in)                   |
 | PRD           | [docs/prd.md](../docs/prd.md)                                                              |
 
 # 1. Product Overview
@@ -344,6 +344,12 @@ Asana provides task descriptions and comments as HTML (`html_notes`, `html_text`
 - Asana mentions (`<a data-asana-gid="..." data-asana-type="user">@name</a>`) are converted to AirSync mention objects with external user references
 
 **Reverse (loading):** Rich text from DevRev is converted to Asana HTML via `serializeToAsanaHtml` in `rich-text-serializer.ts`. Text is HTML-escaped and newlines are converted to `<br>` tags. Mentions are rendered as `<a data-asana-gid="..." data-asana-type="user">` tags. The output is wrapped in a `<body>` element. Plain text extraction is also available via `serializeToPlainText`.
+
+## 2.9 Coverage Reporting
+
+Jest generates `code/coverage/lcov.info` during `npm test` and enforces the configured 80% global coverage thresholds. It uses the V8 coverage provider so `ts-jest` source maps resolve to valid source paths in the LCOV report. After lint, tests, and build pass, `.github/workflows/ci.yml` uploads this report to Coveralls for pull requests and pushes to `main`. The upload uses the workflow's `GITHUB_TOKEN` and `code` as its source base path so LCOV entries resolve to repository files.
+
+Enable `devrev/airsync-asana-snap-in` in the Coveralls GitHub integration for coverage reports and pull request checks to appear. The README links to its Coveralls page and displays the coverage badge for `main`. No additional repository secret is required.
 
 # 3. Limitations
 
