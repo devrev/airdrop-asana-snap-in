@@ -244,7 +244,7 @@ All commands run from the `code/` directory unless otherwise noted.
 
 ### Dependency security
 
-Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
+Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases, including qs 6.16.2 for SNYK-JS-QS-21755395. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
 
 ### Path Aliases
 

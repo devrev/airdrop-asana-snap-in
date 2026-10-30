@@ -417,7 +417,7 @@ The connector requires Node.js 20+ and `@devrev/airsync-sdk`. Extraction workers
 
 Mapper lookups return an unwrapped response or null. `resolveExternalId` logs and returns null when missing or failed; extraction keeps unmapped attachments and keeps files on lookup failures. The sync window remains `extract_from`/`extract_to`.
 
-`npm run test:server` sets `AIRSYNC_LOCAL_DEVELOPMENT=1` for the local test server. Its direct `@devrev/typescript-sdk` development dependency provides snap-in runner types.
+`npm run test:server` sets `AIRSYNC_LOCAL_DEVELOPMENT=1` for the local test server. Its direct `@devrev/typescript-sdk` development dependency provides snap-in runner types. The local server lockfile selects qs 6.16.2 within the existing Express and body-parser ranges to address SNYK-JS-QS-21755395.
 
 Upgrade between runs after v1 workers finish. Once v2 persists state, rollback requires a verified saved v1 state with the v1 connector, or explicit reset/reinitialization and reimport; draining alone does not restore v1 compatibility.
 
