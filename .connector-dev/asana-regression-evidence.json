@@ -1,0 +1,1607 @@
+{
+  "generated_at": "2026-10-30T10:49:08.653378+00:00",
+  "verdict": "fail",
+  "source_artifact": {
+    "deployment": "lambda",
+    "commit": "ed6b21c0e4a8af83281fabf8ef2cc526c4112bc2",
+    "digest": "sha256:a87caaa00f3d8e53fe064fee44163f9830d58e7e1ef8fe7f1e3324e25d1a074b",
+    "snapin_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:snap_in/5e182c61-9525-4386-be4c-3889ef88556c",
+    "snapin_package_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:snap_in_package/8829cc78-95eb-43e4-87a5-110f35c2a3e0",
+    "snapin_version_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:snap_in_package/8829cc78-95eb-43e4-87a5-110f35c2a3e0:snap_in_version/dbd7a61e-e43a-4fe3-aafb-b0442dec4ca2",
+    "url": "https://app.dev.devrev-eng.ai/radorg/settings/snap-ins/snap_in-5e182c61-9525-4386-be4c-3889ef88556c"
+  },
+  "profile": "radorg-dev",
+  "source_frozen": true,
+  "sdk": "@devrev/airsync-sdk@2.0.1",
+  "artifact_hashes": {
+    "archive_sha256": "188fb634690377675a446f8ff6d178171344c35872859457fef36afe9fc0c717",
+    "entries": 92,
+    "package.json": "d88fa018b63eb914c530807878e223a7da192145678feda0b7183b05672da34e",
+    "package-lock.json": "c233f0f81125819ae0c7dda3bb3b94c14cc46561959188fbd403dd4a9a73f9ab",
+    "dist/index.js": "38241d9ca4544db4bff0439e0372e0a1cb4f40182977a0f095a486ca1c71f518"
+  },
+  "local": {
+    "preflight": {
+      "source_commit": "ed6b21c0e4a8af83281fabf8ef2cc526c4112bc2",
+      "source_clean_before_and_after": true,
+      "profile": {
+        "name": "radorg-dev",
+        "org": "radorg",
+        "env": "dev",
+        "default": false,
+        "existence_verified": true,
+        "authentication_verified": false
+      },
+      "tools": {
+        "node": "v26.10.0",
+        "npm": "11.19.1",
+        "airsync": "v0.0.1-5-g1e9ccfa"
+      },
+      "checks": {
+        "project_layout": "pass",
+        "typecheck": "pass",
+        "lint": "pass",
+        "coverage_tests": "pass",
+        "build": "pass"
+      },
+      "tests": {
+        "suites": 27,
+        "passed": 782,
+        "failed": 0
+      },
+      "limitations": [
+        "Profile list is local and does not authenticate token.",
+        "Build gate uses local mocked/HTTP integration tests; it does not prove deployed initial, incremental, reverse or periodic synchronization.",
+        "No source or remote state changed by preflight."
+      ]
+    },
+    "additional_http_tests": {
+      "passed": 13,
+      "project_counts": [
+        0,
+        1,
+        99,
+        100,
+        101,
+        250,
+        1000
+      ],
+      "checks": [
+        "one project-list call per page",
+        "no task-count calls",
+        "no partial publication on later-page429",
+        "recovered503 remains transient in all five phases"
+      ]
+    },
+    "live_discovery_projects": 22
+  },
+  "phases": [
+    {
+      "phase": "initial",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/9baf1678-2c4a-4fdb-b85f-99f6172e4d40",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3",
+        "mode": "initial",
+        "state": "completed",
+        "started_at": "2026-10-30T10:29:57Z",
+        "ended_at": "2026-10-30T10:30:47Z",
+        "source_items": [
+          {
+            "type": "attachments",
+            "count": 12,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Comments",
+            "count": 24,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Links",
+            "count": 12,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Subtasks",
+            "count": 12,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Tasks",
+            "count": 20,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Access Rules",
+            "count": 1,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "attachments",
+            "count": 12,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 12,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "workComments",
+            "count": 24,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 24,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "links",
+            "count": 12,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 12,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "issues",
+            "count": 32,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 32,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "authorizationPolicies",
+            "count": 1,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 1,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          }
+        ],
+        "errors": [
+          {
+            "level": "warning",
+            "short_message": "Warning while processing works.",
+            "long_message": "98204c109028f128 (occurred 10 times)",
+            "occurrence": 10
+          }
+        ]
+      },
+      "assertions": 862,
+      "failed_assertions": [
+        {
+          "assertion": "history errors",
+          "passed": false,
+          "expected": [],
+          "observed": [
+            {
+              "level": "warning",
+              "short_message": "Warning while processing works.",
+              "long_message": "98204c109028f128 (occurred 10 times)",
+              "occurrence": 10
+            }
+          ]
+        },
+        {
+          "assertion": "task-0 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-1 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-2 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-3 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-4 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-5 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-0 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-1 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-2 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-3 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-3 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/266",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-4 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-5 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-6 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-7 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-7 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/270",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-8 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-9 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-10 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-11 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-11 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/262",
+          "observed": null
+        }
+      ],
+      "counts": {
+        "works": 32,
+        "comments": 24,
+        "attachments": 12
+      },
+      "platform_modifier_expectation_failures": 18,
+      "severity_counts": {
+        "info": 467,
+        "warn": 20
+      },
+      "log_verdict": "fail",
+      "log_interval": {
+        "start": "2026-10-30T10:29:52+00:00",
+        "end": "2026-10-30T10:32:47+00:00",
+        "checked_at": "2026-10-30T10:33:26.477894+00:00"
+      },
+      "blocked_coverage": [
+        "new identity creation",
+        "multiple project roles",
+        "authenticated nonmember denial",
+        "exact destination authorization policy semantics"
+      ],
+      "overall": "fail"
+    },
+    {
+      "phase": "incremental",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/bc2edadc-c176-46a1-84e2-8a0e46ad00b9",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3",
+        "mode": "sync_to_devrev",
+        "state": "completed",
+        "started_at": "2026-10-30T10:34:14Z",
+        "ended_at": "2026-10-30T10:34:49Z",
+        "source_items": [
+          {
+            "type": "Subtasks",
+            "count": 8,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Tasks",
+            "count": 10,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Access Rules",
+            "count": 1,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "attachments",
+            "count": 6,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Links",
+            "count": 8,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Comments",
+            "count": 10,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "issues",
+            "count": 18,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 14,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 4
+            }
+          },
+          {
+            "type": "authorizationPolicies",
+            "count": 1,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 1,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "attachments",
+            "count": 6,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 6,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "links",
+            "count": 6,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 6,
+              "deleted": 0,
+              "duplicate": 2,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "workComments",
+            "count": 10,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 10,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          }
+        ],
+        "errors": [
+          {
+            "level": "warning",
+            "short_message": "Warning while processing works.",
+            "long_message": "afc1192a2195c500 (occurred 11 times)",
+            "occurrence": 11
+          }
+        ]
+      },
+      "assertions": 1268,
+      "failed_assertions": [
+        {
+          "assertion": "history errors",
+          "passed": false,
+          "expected": [],
+          "observed": [
+            {
+              "level": "warning",
+              "short_message": "Warning while processing works.",
+              "long_message": "afc1192a2195c500 (occurred 11 times)",
+              "occurrence": 11
+            }
+          ]
+        },
+        {
+          "assertion": "task-0 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-1 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-2 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-3 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-4 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-5 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-0 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-2 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-3 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-3 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/266",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-4 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-5 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-6 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-7 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-7 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/270",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-8 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-9 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-10 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-11 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-11 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/262",
+          "observed": null
+        },
+        {
+          "assertion": "task-20 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-21 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-12 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-13 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-14 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-15 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-16 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-16 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/281",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-17 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        }
+      ],
+      "counts": {
+        "works": 46,
+        "comments": 34,
+        "attachments": 18
+      },
+      "platform_modifier_expectation_failures": 25,
+      "severity_counts": {
+        "info": 407,
+        "warn": 22
+      },
+      "log_verdict": "fail",
+      "log_interval": {
+        "start": "2026-10-30T10:34:09+00:00",
+        "end": "2026-10-30T10:36:49+00:00",
+        "checked_at": "2026-10-30T10:37:28.363458+00:00"
+      },
+      "blocked_coverage": [
+        "new identity creation",
+        "multiple project roles",
+        "authenticated nonmember denial",
+        "exact destination authorization policy semantics"
+      ],
+      "overall": "fail"
+    },
+    {
+      "phase": "nochange",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/a1a421e0-6d8c-45bd-b05a-f425ec2b2ea0",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3",
+        "mode": "sync_to_devrev",
+        "state": "completed",
+        "started_at": "2026-10-30T10:37:30Z",
+        "ended_at": "2026-10-30T10:37:55Z",
+        "source_items": [
+          {
+            "type": "Links",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Comments",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Access Rules",
+            "count": 1,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Subtasks",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Tasks",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "links",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "workComments",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "attachments",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "authorizationPolicies",
+            "count": 1,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 1,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "issues",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          }
+        ],
+        "errors": [
+          {
+            "level": "warning",
+            "short_message": "Warning while processing works.",
+            "long_message": "e991923f5b5b0028 (occurred 11 times)",
+            "occurrence": 11
+          }
+        ]
+      },
+      "assertions": 1251,
+      "failed_assertions": [
+        {
+          "assertion": "history errors",
+          "passed": false,
+          "expected": [],
+          "observed": [
+            {
+              "level": "warning",
+              "short_message": "Warning while processing works.",
+              "long_message": "e991923f5b5b0028 (occurred 11 times)",
+              "occurrence": 11
+            }
+          ]
+        },
+        {
+          "assertion": "task-0 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-1 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-2 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-3 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-4 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-5 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-0 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-2 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-3 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-3 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/266",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-4 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-5 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-6 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-7 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-7 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/270",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-8 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-9 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-10 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-11 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-11 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/262",
+          "observed": null
+        },
+        {
+          "assertion": "task-20 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "task-21 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-12 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-13 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-14 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-15 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-16 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        },
+        {
+          "assertion": "subtask-16 custom parent",
+          "passed": false,
+          "expected": "don:core:dvrv-us-1:devo/1Db8mOoXww:issue/281",
+          "observed": null
+        },
+        {
+          "assertion": "subtask-17 modifier identity",
+          "passed": false,
+          "expected": "don:identity:dvrv-us-1:devo/1Db8mOoXww:devu/1",
+          "observed": "don:identity:dvrv-us-1:devo/1Db8mOoXww:sysu/1"
+        }
+      ],
+      "counts": {
+        "works": 46,
+        "comments": 34,
+        "attachments": 18
+      },
+      "platform_modifier_expectation_failures": 25,
+      "severity_counts": {
+        "info": 295,
+        "warn": 22
+      },
+      "log_verdict": "fail",
+      "log_interval": {
+        "start": "2026-10-30T10:37:25+00:00",
+        "end": "2026-10-30T10:39:55+00:00",
+        "checked_at": "2026-10-30T10:40:36.169176+00:00"
+      },
+      "blocked_coverage": [
+        "new identity creation",
+        "multiple project roles",
+        "authenticated nonmember denial",
+        "exact destination authorization policy semantics"
+      ],
+      "overall": "fail"
+    },
+    {
+      "phase": "reverse",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/d8a3a276-8b58-46c5-9d8d-6ad2368438d6",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3",
+        "mode": "sync_from_devrev",
+        "state": "completed",
+        "started_at": "2026-10-30T10:40:54Z",
+        "ended_at": "2026-10-30T10:41:32Z",
+        "source_items": [
+          {
+            "type": "workComments",
+            "count": 5,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "issues",
+            "count": 10,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "attachments",
+            "count": 3,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "links",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "Comments",
+            "count": 5,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 5,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "Subtasks",
+            "count": 3,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 3,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "Tasks",
+            "count": 7,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 5,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 2
+            }
+          },
+          {
+            "type": "attachments",
+            "count": 3,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 3,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "Links",
+            "count": 0,
+            "outcomes": {}
+          }
+        ],
+        "errors": []
+      },
+      "assertions": 179,
+      "failed_assertions": [],
+      "counts": {
+        "created_works_expected": 8,
+        "created_works_mapped": 8,
+        "comments_expected": 5,
+        "attachments_expected": 3
+      },
+      "platform_modifier_expectation_failures": 0,
+      "severity_counts": {
+        "info": 263,
+        "warn": 4
+      },
+      "log_verdict": "fail",
+      "log_interval": {
+        "start": "2026-10-30T10:40:49+00:00",
+        "end": "2026-10-30T10:43:32+00:00",
+        "checked_at": "2026-10-30T10:44:40.268078+00:00"
+      },
+      "blocked_coverage": [
+        "new identity creation",
+        "multiple project roles",
+        "authenticated nonmember denial",
+        "exact destination authorization policy semantics"
+      ],
+      "overall": "fail"
+    },
+    {
+      "phase": "reverse-partial",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/af56f3ee-5c85-4085-816e-88bebf596310",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3",
+        "mode": "sync_from_devrev",
+        "state": "completed",
+        "started_at": "2026-10-30T10:44:45Z",
+        "ended_at": "2026-10-30T10:45:02Z",
+        "source_items": [
+          {
+            "type": "issues",
+            "count": 10,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "workComments",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "links",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "Subtasks",
+            "count": 3,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 3
+            }
+          },
+          {
+            "type": "Tasks",
+            "count": 7,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 7
+            }
+          },
+          {
+            "type": "Comments",
+            "count": 0,
+            "outcomes": {}
+          },
+          {
+            "type": "Links",
+            "count": 0,
+            "outcomes": {}
+          }
+        ],
+        "errors": []
+      },
+      "assertions": 83,
+      "failed_assertions": [],
+      "counts": null,
+      "platform_modifier_expectation_failures": 0,
+      "severity_counts": {
+        "info": 212,
+        "warn": 2
+      },
+      "log_verdict": "fail",
+      "log_interval": {
+        "start": "2026-10-30T10:44:40+00:00",
+        "end": "2026-10-30T10:47:02+00:00",
+        "checked_at": "2026-10-30T10:47:55.258895+00:00"
+      },
+      "blocked_coverage": [
+        "new identity creation",
+        "multiple project roles",
+        "authenticated nonmember denial",
+        "exact destination authorization policy semantics"
+      ],
+      "overall": "fail"
+    }
+  ],
+  "small_projects": [
+    {
+      "case": "empty",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/265dbf87-a165-4dde-a10c-fc15a6612ff7:sync_history/95a50040-ee12-4923-ac1c-a3e7c19e3c7d",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/265dbf87-a165-4dde-a10c-fc15a6612ff7",
+        "mode": "initial",
+        "state": "completed",
+        "started_at": "2026-10-30T10:34:26Z",
+        "ended_at": "2026-10-30T10:35:06Z",
+        "source_items": [
+          {
+            "type": "Comments",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Access Rules",
+            "count": 1,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Links",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Subtasks",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Tasks",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "attachments",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "workComments",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "authorizationPolicies",
+            "count": 1,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 1,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "links",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "issues",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          }
+        ],
+        "errors": [
+          {
+            "level": "warning",
+            "short_message": "Warning while processing works.",
+            "long_message": "670c0ec01f9c29cc (occurred 11 times)",
+            "occurrence": 11
+          }
+        ]
+      },
+      "expected_works": 0,
+      "observed_works": 0,
+      "data_passed": true,
+      "severity_counts": {
+        "info": 329,
+        "warn": 22
+      },
+      "overall": "fail"
+    },
+    {
+      "case": "single-deletion",
+      "history": {
+        "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/b0192475-95a9-4b8d-9e42-0142d73d6f85:sync_history/4a1f670a-65a3-4dd4-96ca-66191dc3e403",
+        "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/b0192475-95a9-4b8d-9e42-0142d73d6f85",
+        "mode": "initial",
+        "state": "completed",
+        "started_at": "2026-10-30T10:34:27Z",
+        "ended_at": "2026-10-30T10:34:56Z",
+        "source_items": [
+          {
+            "type": "Links",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Comments",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Access Rules",
+            "count": 1,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Subtasks",
+            "count": 0,
+            "is_cumulative": false,
+            "is_shared": false
+          },
+          {
+            "type": "Tasks",
+            "count": 1,
+            "is_cumulative": false,
+            "is_shared": false
+          }
+        ],
+        "destination_items": [
+          {
+            "type": "attachments",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "links",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "workComments",
+            "count": 0,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 0,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "authorizationPolicies",
+            "count": 1,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 1,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          },
+          {
+            "type": "issues",
+            "count": 1,
+            "outcomes": {
+              "already_exists": 0,
+              "created": 1,
+              "deleted": 0,
+              "duplicate": 0,
+              "failed": 0,
+              "filtered": 0,
+              "merged": 0,
+              "updated": 0
+            }
+          }
+        ],
+        "errors": [
+          {
+            "level": "warning",
+            "short_message": "Warning while processing works.",
+            "long_message": "b7231de219e1c075 (occurred 11 times)",
+            "occurrence": 11
+          }
+        ]
+      },
+      "expected_works": 1,
+      "observed_works": 1,
+      "data_passed": true,
+      "severity_counts": {
+        "info": 377,
+        "warn": 22
+      },
+      "overall": "fail"
+    }
+  ],
+  "deleted_project": {
+    "case": "deleted project disables bidirectional periodic sync",
+    "commit": "ed6b21c0e4a8af83281fabf8ef2cc526c4112bc2",
+    "snapin_version_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:snap_in_package/8829cc78-95eb-43e4-87a5-110f35c2a3e0:snap_in_version/dbd7a61e-e43a-4fe3-aafb-b0442dec4ca2",
+    "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/b0192475-95a9-4b8d-9e42-0142d73d6f85",
+    "project_id": "1220048863861346",
+    "before_sync_type": "periodic",
+    "configured_directions": [
+      "to_devrev",
+      "from_devrev"
+    ],
+    "project_deleted_at": "2026-10-30T10:36:32.413924+00:00",
+    "first_failed_history": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/b0192475-95a9-4b8d-9e42-0142d73d6f85:sync_history/9afc1ab3-99e3-44c6-9712-9c7bb966f658",
+    "first_failed_mode": "sync_to_devrev",
+    "first_failed_state": "extraction_error",
+    "first_failed_started_at": "2026-10-30T10:37:14Z",
+    "first_failed_ended_at": "2026-10-30T10:37:16.459Z",
+    "errors": [
+      {
+        "code": 1,
+        "component": "common",
+        "hash": "6a9125fafc6cae92",
+        "level": "error",
+        "long_message": "6a9125fafc6cae92 (occurred 1 time)",
+        "occurrence": 1,
+        "short_message": "External system is permanently inactive or inaccessible."
+      }
+    ],
+    "after_sync_type": "manual",
+    "observed_at": "2026-10-30T10:40:59.732023+00:00",
+    "observation_seconds_after_failure": 223.273023,
+    "new_automatic_histories": 1,
+    "additional_forward_histories": 0,
+    "additional_reverse_histories": 0,
+    "passed": true,
+    "limitation": "No already-running reverse job existed in this experiment; cancellation of an in-flight job is unproven."
+  },
+  "cli_smoke_policy": {
+    "status": "passed",
+    "scope": "Generic CLI policy only; does not establish field, authorization or zero-warning correctness."
+  },
+  "limitations": [
+    "Deferred parent backend fix is local, not deployed; affected live runs still fail.",
+    "New identities, multiple access roles, nonmember denial and exact destination authorization policies are unverified.",
+    "Live401/402/403 revocation and mid-stream attachment access loss were not exercised; real SDK HTTP tests cover project guards.",
+    "Stable SDK2.0.1 can swallow mid-stream attachment access errors; SDK PR262 remains a dependency.",
+    "Cancellation of an already-running job is not proven.",
+    "No production deployment or release publication."
+  ],
+  "harness_adaptations": [
+    "Used Asana E2E fixture/assertion routines against a source-pinned DEV lambda; this is not a marketplace E2E pass.",
+    "Replaced marketplace preflight/provenance with exact active snap-in/version, workspace and connection checks.",
+    "Probe counts stream env labels to avoid JSONParserErr from unrelated malformed logs; phase queries remain exact run_id/emitted severity.",
+    "Seeded reverse stage mapping from verified forward section when initial mapping had no reverse entries.",
+    "Resumed eventual discovery results by exact project ID without duplicating imports.",
+    "Retained original modifier failures; loader link ActorId explains system-user audit changes. No parent or warning assertion was removed."
+  ],
+  "backend_fixes": {
+    "deferred_parent": {
+      "patch": "asana-deferred-parent-backend-fix.patch",
+      "red_green_regression": true,
+      "full_go_tests": "pass",
+      "go_vet": "pass",
+      "deployed": false
+    },
+    "reverse_warnings": {
+      "patch": "asana-reverse-warning-backend-fix.patch",
+      "make_vet_test": "pass",
+      "deployed": false
+    }
+  }
+}
