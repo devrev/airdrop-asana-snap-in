@@ -162,6 +162,55 @@ describe('SDK v2 migration over HTTP', () => {
     expect(resumed.state?.connectorState.users.completed).toBe(true);
   });
 
+  it('resumes an incremental nested branch after a 429 without replaying a completed root', async () => {
+    const tasksPath = '/api/1.0/projects/project/tasks';
+    const branchPath = '/api/1.0/tasks/intermediate/subtasks';
+    const before = '2024-01-01T00:00:00Z';
+    const within = '2024-06-02T00:00:00Z';
+    const setup = (state: unknown) => {
+      server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 200, body: { data: { gid: 'project' } } });
+      server.setRoute({ method: 'GET', path: '/worker_data_url.get', status: 200, body: {
+        state: JSON.stringify(state), objects: JSON.stringify({ tasks: { extract: true }, subtasks: { extract: true }, comments: { extract: true }, links: { extract: true } }),
+      } });
+      server.setRoute({ method: 'GET', path: tasksPath, status: 200, body: { data: [
+        { gid: 'completed-root', name: 'Completed', created_at: before, modified_at: within },
+        { gid: 'root', name: 'Unchanged', created_at: before, modified_at: before, num_subtasks: 1 },
+      ] } });
+      server.setRoute({ method: 'GET', path: '/api/1.0/tasks/root/subtasks', status: 200, body: { data: [
+        { gid: 'intermediate', name: 'Unchanged intermediate', created_at: before, modified_at: before, num_subtasks: 1 },
+      ] } });
+      for (const gid of ['completed-root', 'root', 'intermediate', 'leaf']) {
+        server.setRoute({ method: 'GET', path: `/api/1.0/tasks/${gid}/stories`, status: 200, body: {
+          data: gid === 'leaf' ? [{ gid: 'comment', text: 'Deep comment', type: 'comment', created_at: within, target: { gid: 'leaf' } }] : [],
+        } });
+      }
+    };
+    setup({ ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id' });
+    server.setRoute({ method: 'GET', path: branchPath, status: 429, headers: { 'Retry-After': '10' }, body: { errors: [] } });
+    const input = event();
+    input.payload.event_context.mode = 'INCREMENTAL';
+    input.payload.event_context.extract_from = '2024-06-01T00:00:00Z';
+    const delayed = await runWorker('data-extraction', input);
+    expect(delayed.callback.event_type).toBe('DATA_EXTRACTION_DELAYED');
+    expect(delayed.state?.connectorState.tasks).toMatchObject({ total: 1, lastExtractedTaskIndex: 0, completed: false });
+    expect(delayed.state?.connectorState.subtasks.total).toBe(0);
+    server.resetRoutes();
+    setup(delayed.state);
+    server.setRoute({ method: 'GET', path: branchPath, status: 200, body: { data: [
+      { gid: 'leaf', name: 'Changed leaf', created_at: before, modified_at: within, parent: { gid: 'intermediate' } },
+    ] } });
+    input.payload.event_type = EventType.ContinueExtractingData;
+    const resumed = await runWorker('data-extraction', input);
+    expect(resumed.callback.event_type).toBe('DATA_EXTRACTION_DONE');
+    expect(resumed.state?.connectorState.tasks).toMatchObject({ total: 1, lastExtractedTaskIndex: -1, completed: true });
+    expect(resumed.state?.connectorState.subtasks.total).toBe(1);
+    expect(resumed.state?.connectorState.comments.total).toBe(1);
+    expect(resumed.state?.connectorState.links.total).toBe(1);
+    expect(server.getRequestCount('GET', '/api/1.0/tasks/completed-root/stories')).toBe(0);
+    const listing = new URL(server.getRequests('GET', tasksPath)[0].url, server.baseUrl);
+    expect(listing.searchParams.has('modified_since')).toBe(false);
+  });
+
   it('preserves Asana request parameters and 5xx retries after the baseline upgrade', async () => {
     server.setRoute({ method: 'GET', path: usersPath, status: 200, body: { data: [] },
       retry: { failureCount: 1, errorStatus: 500 } });

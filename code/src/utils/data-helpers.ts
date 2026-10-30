@@ -309,6 +309,13 @@ export async function fetchAllSubtasks(taskGid: string, asanaClient: AsanaClient
   return subtasks;
 }
 
+function taskIsWithinWindow(task: AsanaTask, extractFrom?: string, extractTo?: string): boolean {
+  const { created_at: createdAt, modified_at: modifiedAt } = task;
+  if (extractFrom && createdAt && modifiedAt && createdAt < extractFrom && modifiedAt < extractFrom) return false;
+  if (extractTo && createdAt && modifiedAt && createdAt > extractTo && modifiedAt > extractTo) return false;
+  return true;
+}
+
 /**
  * Recursively extract a task and its subtasks (up to MAX_SUBTASK_DEPTH levels).
  * All extracted data is accumulated into the provided buffer rather than pushed
@@ -331,10 +338,13 @@ export async function extractTaskWithSubtasks(
     ...(depth === 0 && { memberships: task.memberships?.filter((membership) => membership.project?.gid === projectId) }),
     ...(taskFieldIds && { custom_fields: task.custom_fields?.filter((field) => !!field.gid && taskFieldIds.includes(field.gid)) }),
   };
-  if (depth === 0) {
-    buffer.tasks.push(scopedTask);
-  } else {
-    buffer.subtasks.push(scopedTask);
+  const includeTask = taskIsWithinWindow(task, extractFrom, extractTo);
+  if (includeTask) {
+    if (depth === 0) {
+      buffer.tasks.push(scopedTask);
+    } else {
+      buffer.subtasks.push(scopedTask);
+    }
   }
 
   // Fetch comments when comments or attachments are in scope (attachments need
@@ -424,7 +434,7 @@ export async function extractTaskWithSubtasks(
     }
   }
 
-  if (adapter.shouldExtract(ItemType.LINKS) && depth === 0 && task.dependencies && Array.isArray(task.dependencies)) {
+  if (includeTask && adapter.shouldExtract(ItemType.LINKS) && depth === 0 && task.dependencies && Array.isArray(task.dependencies)) {
     const dependencyLinks: AsanaLink[] = task.dependencies
       .filter((dependency) => dependency.gid)
       .map((dependency) => ({
@@ -443,29 +453,7 @@ export async function extractTaskWithSubtasks(
       const subtasks = await fetchAllSubtasks(task.gid ?? '', asanaClient);
 
       for (const subtask of subtasks) {
-        if (extractFrom) {
-          const createdAt = subtask.created_at;
-          const modifiedAt = subtask.modified_at;
-          const isNew = createdAt && createdAt >= extractFrom;
-          const isModified = modifiedAt && modifiedAt >= extractFrom;
-
-          if (!isNew && !isModified) {
-            continue;
-          }
-        }
-
-        if (extractTo) {
-          const createdAt = subtask.created_at;
-          const modifiedAt = subtask.modified_at;
-          const createdBeforeEnd = !createdAt || createdAt <= extractTo;
-          const modifiedBeforeEnd = !modifiedAt || modifiedAt <= extractTo;
-
-          if (!createdBeforeEnd && !modifiedBeforeEnd) {
-            continue;
-          }
-        }
-
-        if (adapter.shouldExtract(ItemType.LINKS)) {
+        if (taskIsWithinWindow(subtask, extractFrom, extractTo) && adapter.shouldExtract(ItemType.LINKS)) {
           buffer.links.push({
             source_gid: task.gid ?? '',
             target_gid: subtask.gid ?? '',
@@ -487,6 +475,7 @@ export async function extractTaskWithSubtasks(
 /** Extract all project tasks and their subtrees (subtasks, comments, attachments, links). */
 export async function extractTasks(asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>): Promise<void> {
   const { extract_from: extractFrom, extract_to: extractTo } = adapter.event.payload.event_context;
+  const taskModifiedSince = !adapter.shouldExtract(ItemType.SUBTASKS) ? extractFrom : undefined;
 
   do {
     if (adapter.isTimeout) {
@@ -502,7 +491,7 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: Extraction
 
     const response = await fetchPageRecoveringExpiredOffset(
       adapter.state.tasks.offset,
-      (o) => asanaClient.getTasks({ ...(o && { offset: o }), ...(extractFrom && { modified_since: extractFrom }) }),
+      (o) => asanaClient.getTasks({ ...(o && { offset: o }), ...(taskModifiedSince && { modified_since: taskModifiedSince }) }),
       () => {
         adapter.state.tasks.offset = '';
         adapter.state.tasks.lastExtractedTaskIndex = -1;
@@ -517,17 +506,6 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: Extraction
     const startIndex = adapter.state.tasks.lastExtractedTaskIndex + 1;
 
     for (let i = startIndex; i < projectTasks.length; i++) {
-      // Upper bound filter — Asana API only supports lower bound via modified_since
-      if (extractTo) {
-        const task = projectTasks[i];
-        const createdAfterEnd = task.created_at && task.created_at > extractTo;
-        const modifiedAfterEnd = task.modified_at && task.modified_at > extractTo;
-        if (createdAfterEnd && modifiedAfterEnd) {
-          adapter.state.tasks.lastExtractedTaskIndex = i;
-          continue;
-        }
-      }
-
       const buffer: TaskExtractionBuffer = {
         tasks: [],
         subtasks: [],

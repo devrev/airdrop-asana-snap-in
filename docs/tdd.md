@@ -215,7 +215,7 @@ Base URL: `https://app.asana.com/api/1.0`
 
 All extraction endpoints use offset-based pagination with `limit=100` and `opt_fields` to request specific fields.
 
-For time-scoped and incremental syncs, tasks are filtered using the `modified_since` API parameter (lower bound from `extract_from`) and client-side filtering (upper bound from `extract_to`). Subtasks, comments, and attachments are filtered client-side on both bounds.
+For time-scoped and incremental syncs, task/subtask records are filtered client-side against `extract_from` and `extract_to`, independently of descendant traversal. With subtasks selected, every project root and supported subtask branch is visited because Asana does not propagate descendant changes to ancestor timestamps. Root listing retains `modified_since` only when subtasks are excluded. Comments and attachments retain their own client-side timestamp filters.
 
 ### 2.3.2 Loading Endpoints (DevRev -> Asana)
 
@@ -330,7 +330,7 @@ Data extraction (`data-extraction.ts`) uses a **buffer-and-flush** pattern to en
 - Comments with mixed content where stripping asset URLs leaves no remaining text
 - Image-only comments are kept (they reference inline images)
 
-**Time-scoped extraction:** The platform provides `extract_from` and `extract_to` on `adapter.event.payload.event_context`. Tasks use `extract_from` as the Asana API's `modified_since` parameter (lower bound); `extract_to` is applied client-side (upper bound) since Asana has no `modified_before` parameter. Subtasks are filtered by `created_at` and `modified_at` against both bounds. Comments and attachments are filtered by `created_at` against both bounds. The `prepareStateForExtraction` function resets entity progress on incremental syncs; time bounds are read directly from the event (not stored in state).
+**Time-scoped extraction:** The platform provides `extract_from` and `extract_to` on `adapter.event.payload.event_context`. Tasks use the API's `modified_since` lower bound only when subtasks are excluded. Otherwise all roots and supported descendants are traversed and `taskIsWithinWindow` filters each task/subtask record independently by `created_at` and `modified_at`; a record is excluded only when both known timestamps precede the lower bound or both exceed the upper bound. Missing timestamps are included conservatively. Ancestors outside the window still lead to descendants inside it. Comments and attachments are filtered by `created_at` against both bounds. The `prepareStateForExtraction` function resets entity progress on incremental syncs; time bounds are read directly from the event (not stored in state).
 
 The incremental reset precedes the project-access guard. If that guard returns a rate-limit delay, the SDK saves reset progress before emitting it. A continuation then extracts the new window rather than skipping entities marked complete by the preceding sync. Continuations do not reset in-progress cursors. The HTTP worker test restores the saved delay state and verifies that the resumed worker calls Asana.
 
@@ -451,3 +451,9 @@ Formula custom fields request `representation_type` and `is_formula_field`, use 
 `npm run test:unit -- --runInBand` selects direct connector-function scenarios using `code/jest.unit.config.js`. The full Jest suite retains its existing coverage gate. Scenario coverage is listed in `docs/unit-test-coverage.md`; the added scenario suites include normalization, reverse mapping, metadata/permissions and control flow.
 
 Dependency security also pins follow-redirects 1.16.2 (SNYK-JS-FOLLOWREDIRECTS-21762031); qs 6.16.2 addresses SNYK-JS-QS-21755395. These dependency fixes require a fresh Snyk scan; installing patched versions alone is not scanner clearance.
+
+### Incremental descendant completeness
+
+An unchanged root or intermediate subtask can contain a changed descendant without its own `modified_at` advancing. Traversal therefore visits all supported branches independently from record emission. Parent links are emitted for selected child records, while root dependency links follow root selection. Story reads remain enabled for visited tasks when comments/attachments are selected so independent child content is not lost; their own window filtering avoids repeated comments and attachment mapper lookups outside the window. This increases incremental listing/story request costs, which are subject to the existing SDK delay and continuation mechanism. Attachment byte streaming is unchanged. Root-tree buffering, the saved page/root index, expired-offset recovery and maximum depth remain unchanged.
+
+Regression coverage: `nested-incremental.test.ts` exercises changed depth-two descendants through unchanged roots/intermediates, nochange output, missing timestamps, upper-window traversal, pagination and scope-specific API filtering. The HTTP worker/SDK integration test delays on a deep subtask-list 429, restores persisted state and verifies exact totals and no replay of the preceding completed root.

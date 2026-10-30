@@ -1888,11 +1888,12 @@ describe('extractTasks', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('should pass extract_from as modified_since to API', async () => {
+  it('should pass extract_from as modified_since when subtasks are excluded', async () => {
     const client = createMockClient({
       taskPages: [{ tasks: [] }],
     });
     const adapter = createMockAdapter({ extractFrom: '2024-06-01T00:00:00Z' });
+    adapter.shouldExtract.mockImplementation((type: string) => type !== ItemType.SUBTASKS);
 
     await extractTasks(client, adapter);
 
