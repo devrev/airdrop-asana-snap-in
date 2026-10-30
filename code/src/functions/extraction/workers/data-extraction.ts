@@ -93,9 +93,8 @@ processExtractionTask<ExtractorState>({
   task: async ({ adapter }) => {
     adapter.initializeRepos(repos);
     const asanaClient = new AsanaClient(adapter.event);
+    prepareStateForExtraction(adapter);
     return new ProjectAccessGuard(asanaClient).run(async () => {
-      prepareStateForExtraction(adapter);
-
       for (const itemType of itemTypesToExtract) {
         if (adapter.isTimeout) return { status: 'progress' };
 

@@ -332,6 +332,8 @@ Data extraction (`data-extraction.ts`) uses a **buffer-and-flush** pattern to en
 
 **Time-scoped extraction:** The platform provides `extract_from` and `extract_to` on `adapter.event.payload.event_context`. Tasks use `extract_from` as the Asana API's `modified_since` parameter (lower bound); `extract_to` is applied client-side (upper bound) since Asana has no `modified_before` parameter. Subtasks are filtered by `created_at` and `modified_at` against both bounds. Comments and attachments are filtered by `created_at` against both bounds. The `prepareStateForExtraction` function resets entity progress on incremental syncs; time bounds are read directly from the event (not stored in state).
 
+The incremental reset precedes the project-access guard. If that guard returns a rate-limit delay, the SDK saves reset progress before emitting it. A continuation then extracts the new window rather than skipping entities marked complete by the preceding sync. Continuations do not reset in-progress cursors. The HTTP worker test restores the saved delay state and verifies that the resumed worker calls Asana.
+
 ## 2.7 Attachments Handling
 
 Attachments are extracted from task properties during data extraction. Each task includes an `attachments` array with `download_url` and `name` (requested via opt_fields). The normalized attachment contains: `id` (GID), `url` (download_url), `file_name` (name), `parent_id`, and `inline` flag.

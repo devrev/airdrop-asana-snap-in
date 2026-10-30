@@ -200,6 +200,8 @@ interface ExtractorState {
 
 The SDK persists connector state automatically when it sends the task response; SDK bookkeeping is stored separately. Upgrade between runs after v1 workers finish. Once v2 persists state, rollback requires a verified saved v1 state with the v1 connector, or explicit reset/reinitialization and reimport; draining alone does not restore v1 compatibility. On the next invocation, state is restored so extraction can resume. The `prepareStateForExtraction` function in `data-helpers.ts` resets entity progress for incremental syncs. Time-scoped extraction bounds (`extract_from` and `extract_to`) are read directly from `adapter.event.payload.event_context` — they are not stored in state.
 
+The data worker resets incremental progress before checking project access. A project-check 429 must persist the new run's reset state, so its continuation extracts data instead of retaining the preceding run's completion flags. Continuations preserve their current cursor and totals. The HTTP SDK regression covers the delay and restoration of the actual persisted state.
+
 ## Asana API and Error Handling
 
 - **Base URL**: `https://app.asana.com/api/1.0`

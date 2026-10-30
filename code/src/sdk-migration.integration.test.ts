@@ -131,6 +131,37 @@ describe('SDK v2 migration over HTTP', () => {
     });
   }
 
+  it('resets prior incremental completion before a project rate-limit delay', async () => {
+    const previous = { ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id' };
+    previous.users.completed = true;
+    previous.tasks.completed = true;
+    previous.users.total = 100;
+    seedState(previous);
+    server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 429,
+      headers: { 'Retry-After': '30' }, body: { errors: [] } });
+    const input = event();
+    input.payload.event_context.mode = 'INCREMENTAL';
+    input.payload.event_context.extract_from = '2026-10-29T00:00:00Z';
+
+    const delayed = await runWorker('data-extraction', input);
+    expect(delayed.callback.event_type).toBe('DATA_EXTRACTION_DELAYED');
+    expect(delayed.state?.connectorState.users.completed).toBe(false);
+    expect(delayed.state?.connectorState.tasks.completed).toBe(false);
+    expect(delayed.state?.connectorState.users.total).toBe(0);
+    expect(server.getRequestCount('GET', usersPath)).toBe(0);
+
+    seedState(delayed.state);
+    (server as unknown as { requests: unknown[] }).requests.length = 0;
+    server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 200,
+      body: { data: { gid: 'project' } } });
+    server.setRoute({ method: 'GET', path: usersPath, status: 200, body: { data: [] } });
+    input.payload.event_type = EventType.ContinueExtractingData;
+    const resumed = await runWorker('data-extraction', input);
+    expect(resumed.callback.event_type).toBe('DATA_EXTRACTION_DONE');
+    expect(server.getRequestCount('GET', usersPath)).toBe(1);
+    expect(resumed.state?.connectorState.users.completed).toBe(true);
+  });
+
   it('preserves Asana request parameters and 5xx retries after the baseline upgrade', async () => {
     server.setRoute({ method: 'GET', path: usersPath, status: 200, body: { data: [] },
       retry: { failureCount: 1, errorStatus: 500 } });
