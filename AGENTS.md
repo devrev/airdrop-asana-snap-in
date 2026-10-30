@@ -179,6 +179,7 @@ State persists across Lambda invocations via the SDK. The connector defines `Ext
 
 ```typescript
 interface ExtractorState {
+  taskFieldIds?: string[];
   users:             { completed: boolean; offset: string; total: number };
   tasks:             { completed: boolean; offset: string; total: number; lastExtractedTaskIndex: number };
   tags:              { completed: boolean; offset: string; total: number };
@@ -186,7 +187,7 @@ interface ExtractorState {
   comments:          { completed: boolean; total: number };
   attachments:       { completed: boolean; total: number };
   links:             { completed: boolean; total: number };
-  groups:            { completed: boolean; offset: string; total: number };
+  groups:            { completed: boolean; offset: string; total: number; lastExtractedTeamIndex?: number };
   group_memberships: { completed: boolean; total: number };
   access_rules:      { completed: boolean; total: number };
 }
@@ -333,3 +334,15 @@ All subpages (each has a "Copy Markdown" button for easy reference):
 - `/supported-object-types` — DevRev object types available for mapping (issues, tickets, conversations, articles, custom objects, etc.) and their supported fields.
 - `/data-model/rich-text-fields` — Rich text format: markdown arrays with mention objects (`ref_type`, `id`, `fallback_record_name`), article importing with inline attachments (artifact references) and article cross-links.
 - `/data-model/mapping-reasons` — Transformation methods reference: `use_directly`, `make_custom_stages`, `map_enum`, `use_rich_text`, `use_fixed_value`, `use_raw_jq`, `make_constrained_simple_value`, `reference_custom_field`, `construct_text_field`, etc.; reasons why certain mappings may be unavailable (type mismatches, struct limitations, link restrictions).
+
+## Production resilience
+
+The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` stops optional task-count requests after a 429 in the current ten-project batch, logs once, and returns all project descriptors with the existing zero-count fallback for unavailable counts.
+
+`ExtractorState.groups.lastExtractedTeamIndex` is an optional cursor within a team page. Completed teams are not replayed after a delay or timeout; page advancement and expired-offset recovery reset the cursor. The current team's memberships are fetched before either record is emitted. A retry within a single team's membership pagination still starts that team again.
+
+Successful metadata extraction persists `ExtractorState.taskFieldIds`. `extractTaskWithSubtasks` buffers copies with only those custom fields and, for root tasks, only the selected project's memberships. Older saved state without field IDs retains its prior custom-field behavior until metadata next runs. Disabled enum options remain declared because historical tasks can still contain them. Attachment-only comments use their attachment names (or `Attachment`) when HTML and text provide no body.
+
+`filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and validates positive finite whole-second delays for 429. Item 404 and transient service failures remain uncoded.
+
+`code/src/utils/production-regressions.test.ts` covers task-count request bounds, partial successful counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.

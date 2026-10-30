@@ -173,7 +173,9 @@ export function normalizeAsanaAttachment(item: AsanaAttachment): NormalizedAttac
 /** Normalize an Asana comment (story) into a DevRev-compatible normalized item. */
 export function normalizeAsanaComment(item: AsanaStory): NormalizedItem {
   const htmlContent = item.html_text ?? item.text ?? null;
-  const bodyContent = parseAsanaRichText(htmlContent);
+  const bodyContent = parseAsanaRichText(htmlContent) ?? parseAsanaRichText(item.text) ??
+    (item.attachments?.length || /<img\b[^>]*data-asana-type="attachment"/i.test(item.html_text ?? '')
+      ? [item.attachments?.map((attachment) => attachment.name).filter(Boolean).join(', ') || 'Attachment'] : null);
   const createdDate = toTimestamp(item?.created_at) ?? new Date().toISOString();
 
   return {

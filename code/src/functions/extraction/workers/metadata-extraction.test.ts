@@ -13,7 +13,7 @@ jest.mock('@devrev/airsync-sdk', () => ({
   processExtractionTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
-jest.mock('@asana/external_domain_metadata.json', () => ({ record_types: [] }), { virtual: true });
+jest.mock('@asana/external_domain_metadata.json', () => ({ record_types: { tasks: { fields: {} } } }), { virtual: true });
 jest.mock('@utils/metadata-helpers');
 
 const mockProcessTask = processExtractionTask as jest.Mock;
@@ -30,6 +30,7 @@ const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 function createMockAdapter() {
   const mockPush = jest.fn();
   return {
+    state: {},
     event: {
       payload: {
         connection_data: { key: 'test-key', org_id: 'workspace-123' },

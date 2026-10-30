@@ -427,3 +427,15 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 `code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; and real loader create/update/429/error outcomes. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.
 
 Common-error regressions cover real worker callbacks for project 401/402/403/404 and 429 in all five project phases, workspace discovery errors, and reverse access loss without advancing the failed item cursor. Unit tests cover generic/transient failures, Retry-After validation and item failures with an accessible project.
+
+## Production resilience
+
+The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` stops optional task-count requests after a 429 in the current ten-project batch, logs once, and returns all project descriptors with the existing zero-count fallback for unavailable counts.
+
+`ExtractorState.groups.lastExtractedTeamIndex` is an optional cursor within a team page. Completed teams are not replayed after a delay or timeout; page advancement and expired-offset recovery reset the cursor. The current team's memberships are fetched before either record is emitted. A retry within a single team's membership pagination still starts that team again.
+
+Successful metadata extraction persists `ExtractorState.taskFieldIds`. `extractTaskWithSubtasks` buffers copies with only those custom fields and, for root tasks, only the selected project's memberships. Older saved state without field IDs retains its prior custom-field behavior until metadata next runs. Disabled enum options remain declared because historical tasks can still contain them. Attachment-only comments use their attachment names (or `Attachment`) when HTML and text provide no body.
+
+`filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and validates positive finite whole-second delays for 429. Item 404 and transient service failures remain uncoded.
+
+`code/src/utils/production-regressions.test.ts` covers task-count request bounds, partial successful counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.

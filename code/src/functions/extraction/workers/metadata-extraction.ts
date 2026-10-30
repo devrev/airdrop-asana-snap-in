@@ -49,6 +49,7 @@ processExtractionTask<ExtractorState>({
       enrichMetadataWithSubtaskStages(metadata);
 
       await adapter.getRepo(ItemType.EXTERNAL_DOMAIN_METADATA)?.push([metadata]);
+      adapter.state.taskFieldIds = Object.keys(metadata.record_types.tasks.fields);
       return { status: 'success' };
     });
   },

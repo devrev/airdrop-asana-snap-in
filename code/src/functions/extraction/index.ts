@@ -10,6 +10,7 @@ import initialDomainMapping from '@asana/initial_domain_mapping.json';
 // The 'completed' field is a boolean flag that indicates whether the data extraction
 // process for a particular record type (users, tasks, or attachments) is finished.
 export interface ExtractorState {
+  taskFieldIds?: string[];
   users: {
     completed: boolean;
     offset: string;
@@ -46,6 +47,7 @@ export interface ExtractorState {
     completed: boolean;
     offset: string;
     total: number;
+    lastExtractedTeamIndex?: number;
   };
   group_memberships: {
     completed: boolean;

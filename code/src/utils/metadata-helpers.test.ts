@@ -100,7 +100,7 @@ describe('buildCustomFieldDefinition', () => {
       });
     });
 
-    it('should filter out disabled enum options', () => {
+    it('should retain disabled enum options for historical task values', () => {
       const customField: AsanaCustomField & { enum_options: AsanaEnumOption[] } = {
         gid: '12345',
         name: 'Status',
@@ -114,9 +114,10 @@ describe('buildCustomFieldDefinition', () => {
 
       const result = buildCustomFieldDefinition(customField);
 
-      expect(result.enum?.values).toHaveLength(2);
+      expect(result.enum?.values).toHaveLength(3);
       expect(result.enum?.values).toEqual([
         { key: 'opt1', name: 'Active' },
+        { key: 'opt2', name: 'Archived' },
         { key: 'opt3', name: 'Pending' },
       ]);
     });

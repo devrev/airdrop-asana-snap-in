@@ -8,6 +8,7 @@ import {
   normalizeAsanaGroupMembership,
 } from '@asana/data-normalization';
 import type { AsanaAttachment, AsanaLink, AsanaStory, AsanaTask } from '@asana/types';
+import { describeAsanaError } from '@utils/asana-errors';
 import {
   extractAttachmentGidFromCommentText,
   extractAttachmentsFromTask,
@@ -60,14 +61,11 @@ export function prepareStateForExtraction(adapter: ExtractionAdapter<ExtractorSt
 
 /** Handle extraction errors, returning a delay for 429s or an error record otherwise. */
 export function handleExtractionError(error: unknown): ExtractListResponse {
-  if (axios.isAxiosError(error) && error.response?.status === 429) {
-    // Fall back to 60s if Retry-After header is missing or non-numeric
-    const retryAfter = Number(error.response.headers['retry-after']) || 60;
-    return { delay: retryAfter };
-  }
+  const failure = describeAsanaError(error, 'request');
+  if (failure.status === 'delay') return { delay: failure.delaySeconds };
 
   const errorMessage = `Error while extracting data: ${serializeError(error)}`;
-  return { error: { message: errorMessage } };
+  return { error: { ...failure.error, message: errorMessage } };
 }
 
 /** Asana offset tokens expire after a while, so a token saved in state can be dead by the next invocation. */
@@ -161,34 +159,42 @@ export async function extractGroups(
     const response = await fetchPageRecoveringExpiredOffset(
       offset,
       (o) => asanaClient.getTeamsForWorkspace({ ...(o ? { offset: o } : {}) }),
-      () => (adapter.state.groups.offset = '')
+      () => {
+        adapter.state.groups.offset = '';
+        adapter.state.groups.lastExtractedTeamIndex = -1;
+      }
     );
 
     const teams = response.data?.data || [];
-    for (const team of teams) {
+    for (let index = (adapter.state.groups.lastExtractedTeamIndex ?? -1) + 1; index < teams.length; index++) {
+      const team = teams[index];
       if (adapter.isTimeout) {
         console.log('Timeout detected during team processing.');
         return;
       }
 
-      if (!team.gid) continue;
+      if (!team.gid) {
+        adapter.state.groups.lastExtractedTeamIndex = index;
+        continue;
+      }
 
       const groupItem = normalizeAsanaGroup(team.gid, team.name ?? `Team ${team.gid}`, (team as unknown as { description?: string }).description);
+      const teamUserGids = adapter.shouldExtract(ItemType.GROUP_MEMBERSHIPS)
+        ? await fetchTeamMemberUserGids(team.gid, asanaClient) : [];
+
       await adapter.getRepo(ItemType.GROUPS)?.push([groupItem]);
       adapter.state.groups.total += 1;
-
-      if (adapter.shouldExtract(ItemType.GROUP_MEMBERSHIPS)) {
-        const teamUserGids = await fetchTeamMemberUserGids(team.gid, asanaClient);
-        if (teamUserGids.length > 0) {
-          const groupMembershipItem = normalizeAsanaGroupMembership(team.gid, teamUserGids);
-          await adapter.getRepo(ItemType.GROUP_MEMBERSHIPS)?.push([groupMembershipItem]);
-          adapter.state.group_memberships.total += 1;
-        }
+      if (teamUserGids.length > 0) {
+        const groupMembershipItem = normalizeAsanaGroupMembership(team.gid, teamUserGids);
+        await adapter.getRepo(ItemType.GROUP_MEMBERSHIPS)?.push([groupMembershipItem]);
+        adapter.state.group_memberships.total += 1;
       }
+      adapter.state.groups.lastExtractedTeamIndex = index;
     }
 
     offset = response.data?.next_page?.offset || '';
     adapter.state.groups.offset = offset;
+    adapter.state.groups.lastExtractedTeamIndex = -1;
 
     console.log(`Groups extraction: page completed. Extracted ${teams.length} teams.`);
   } while (offset);
@@ -242,29 +248,21 @@ export async function filterAlreadyMappedAttachments(
       continue;
     }
 
-    try {
-      const response = await adapter.mappers.getByExternalId({
-        sync_unit: syncUnit,
-        external_id: attachment.gid,
-        target_type: SyncMapperRecordTargetType.ARTIFACT,
-      });
+    const response = await adapter.mappers.getByExternalId({
+      sync_unit: syncUnit,
+      external_id: attachment.gid,
+      target_type: SyncMapperRecordTargetType.ARTIFACT,
+    });
 
-      if (response?.sync_mapper_record) {
-        console.log(
-          `Attachment extraction: skipping ${attachment.gid} ("${attachment.name}") — ` +
-            `already mapped to a DevRev artifact.`
-        );
-        continue;
-      }
-
-      kept.push(attachment);
-    } catch (error) {
-      console.warn(
-        `Attachment extraction: could not check mapper record for ${attachment.gid}, ` +
-          `extracting it anyway: ${serializeError(error)}`
+    if (response?.sync_mapper_record) {
+      console.log(
+        `Attachment extraction: skipping ${attachment.gid} ("${attachment.name}") — ` +
+          `already mapped to a DevRev artifact.`
       );
-      kept.push(attachment);
+      continue;
     }
+
+    kept.push(attachment);
   }
 
   return kept;
@@ -326,10 +324,16 @@ export async function extractTaskWithSubtasks(
   extractFrom?: string,
   extractTo?: string
 ): Promise<void> {
+  const taskFieldIds = adapter.state?.taskFieldIds;
+  const scopedTask = {
+    ...task,
+    ...(depth === 0 && { memberships: task.memberships?.filter((membership) => membership.project?.gid === projectId) }),
+    ...(taskFieldIds && { custom_fields: task.custom_fields?.filter((field) => !!field.gid && taskFieldIds.includes(field.gid)) }),
+  };
   if (depth === 0) {
-    buffer.tasks.push(task);
+    buffer.tasks.push(scopedTask);
   } else {
-    buffer.subtasks.push(task);
+    buffer.subtasks.push(scopedTask);
   }
 
   // Fetch comments when comments or attachments are in scope (attachments need

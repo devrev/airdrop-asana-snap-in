@@ -45,7 +45,6 @@ export function buildCustomFieldDefinition(customField: AsanaCustomField): Field
     const enumOptions = customField.enum_options ?? [];
     fieldDef.enum = {
       values: enumOptions
-        .filter((opt) => opt.enabled !== false)
         .map((opt) => ({ key: opt.gid!, name: opt.name })),
     };
 

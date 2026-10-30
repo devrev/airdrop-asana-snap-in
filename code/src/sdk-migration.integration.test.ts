@@ -204,6 +204,51 @@ describe('SDK v2 migration over HTTP', () => {
     expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${code}`);
   });
 
+  it.each([[401, 'EXTERNAL_SYSTEM_NO_ACCESS'], [402, 'EXTERNAL_SYSTEM_NO_PERMISSION'],
+    [403, 'EXTERNAL_SYSTEM_NO_PERMISSION']])('emits a common error when required user extraction returns HTTP %i', async (status, code) => {
+    server.setRoute({ method: 'GET', path: usersPath, status, body: { errors: [] } });
+    const { callback } = await runWorker('data-extraction');
+    expect(callback.event_type).toBe('DATA_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${code}`);
+  });
+
+  it('persists the declared task field IDs after metadata extraction', async () => {
+    server.setRoute({ method: 'GET', path: fieldsPath, status: 200,
+      body: { data: [{ custom_field: { gid: '12345', name: 'Project field', type: 'text' } }] } });
+    server.setRoute({ method: 'GET', path: sectionsPath, status: 200, body: { data: [] } });
+    const { callback, state } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
+    expect(callback.event_type).toBe('METADATA_EXTRACTION_DONE');
+    expect(state?.connectorState.taskFieldIds).toContain('12345');
+  });
+
+  it('resumes group extraction through the real SDK after a membership rate limit', async () => {
+    const teamPath = '/api/1.0/workspaces/workspace/teams';
+    const memberPath = (id: string) => `/api/1.0/teams/${id}/team_memberships`;
+    const setup = (state: unknown) => {
+      server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 200, body: { data: { gid: 'project' } } });
+      server.setRoute({ method: 'GET', path: '/worker_data_url.get', status: 200,
+        body: { state: JSON.stringify(state), objects: JSON.stringify({ groups: { extract: true }, group_memberships: { extract: true } }) } });
+      server.setRoute({ method: 'GET', path: teamPath, status: 200,
+        body: { data: [{ gid: 'team1' }, { gid: 'team2' }] } });
+    };
+    setup({ ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id' });
+    server.setRoute({ method: 'GET', path: memberPath('team1'), status: 200, body: { data: [{ user: { gid: 'u1' } }] } });
+    server.setRoute({ method: 'GET', path: memberPath('team2'), status: 429,
+      headers: { 'Retry-After': '10' }, body: { errors: [] } });
+    const paused = await runWorker('data-extraction');
+    expect(paused.callback.event_type).toBe('DATA_EXTRACTION_DELAYED');
+    expect(paused.state?.connectorState.groups).toMatchObject({ total: 1, lastExtractedTeamIndex: 0 });
+    server.resetRoutes();
+    setup(paused.state);
+    server.setRoute({ method: 'GET', path: memberPath('team2'), status: 200, body: { data: [{ user: { gid: 'u2' } }] } });
+    const resumed = await runWorker('data-extraction', event(EventType.ContinueExtractingData));
+    expect(resumed.callback.event_type).toBe('DATA_EXTRACTION_DONE');
+    expect(resumed.state?.connectorState.groups).toMatchObject({ total: 2, completed: true, lastExtractedTeamIndex: -1 });
+    expect(resumed.state?.connectorState.group_memberships.total).toBe(2);
+    expect(server.getRequestCount('GET', memberPath('team1'))).toBe(0);
+    expect(server.getRequestCount('GET', memberPath('team2'))).toBe(1);
+  });
+
   it.each([401, 403, 404])('stops reverse sync and preserves its cursor when project access changes to HTTP %i', async (status) => {
     serveLoaderFile();
     server.setRoute({ method: 'GET', path: targetMapperPath, status: 404, body: {} });
@@ -306,7 +351,11 @@ describe('SDK v2 migration over HTTP', () => {
       expect(await resolveExternalId(mappers, 'test_sync_unit', 'task-devrev')).toBe(status === 200 ? '12345' : null);
       const adapter = createTestExtractionAdapter({ event: event(), initialState: structuredClone(initialState) });
       const attachments = [{ gid: 'file-1', name: 'attachment.txt' }];
-      expect(await filterAlreadyMappedAttachments(attachments, adapter)).toEqual(status === 200 ? [] : attachments);
+      if (status === 403) {
+        await expect(filterAlreadyMappedAttachments(attachments, adapter)).rejects.toThrow();
+      } else {
+        expect(await filterAlreadyMappedAttachments(attachments, adapter)).toEqual(status === 200 ? [] : attachments);
+      }
       expect(server.getRequestCount('GET', targetMapperPath)).toBe(1);
       expect(server.getRequestCount('GET', externalMapperPath)).toBe(1);
     }

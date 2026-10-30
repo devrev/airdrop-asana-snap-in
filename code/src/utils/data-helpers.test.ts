@@ -905,7 +905,7 @@ describe('extractTaskWithSubtasks', () => {
     expect(adapter.mappers.getByExternalId).not.toHaveBeenCalled();
   });
 
-  it('should keep an attachment when the mapping lookup fails, rather than drop data', async () => {
+  it('should fail the task when attachment deduplication is unavailable', async () => {
     const task = {
       gid: 't1',
       attachments: [
@@ -918,10 +918,10 @@ describe('extractTaskWithSubtasks', () => {
     const adapter = createMockAdapter();
     adapter.mappers.getByExternalId = jest.fn().mockRejectedValue(new Error('mapper service unavailable'));
 
-    await extractTaskWithSubtasks(task as any, client, 'proj1', buffer, adapter, 0, '2024-06-01T00:00:00Z');
+    await expect(extractTaskWithSubtasks(task as any, client, 'proj1', buffer, adapter, 0, '2024-06-01T00:00:00Z'))
+      .rejects.toThrow('mapper service unavailable');
 
-    expect(buffer.attachments).toHaveLength(1);
-    expect(buffer.attachments[0].gid).toBe('att1');
+    expect(buffer.attachments).toHaveLength(0);
   });
 
   it('should filter subtasks by extractFrom (lower bound)', async () => {

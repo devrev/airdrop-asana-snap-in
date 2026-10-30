@@ -1,4 +1,5 @@
 import { ExternalSyncUnit } from '@devrev/airsync-sdk';
+import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
@@ -67,17 +68,25 @@ export async function buildExternalSyncUnits(
   asanaClient: AsanaClient
 ): Promise<ExternalSyncUnit[]> {
   const results: ExternalSyncUnit[] = [];
+  let rateLimited = false;
 
   for (let i = 0; i < projects.length; i += BATCH_SIZE) {
     const batch = projects.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (project) => {
         let itemCount = 0;
-        try {
-          const responseProject = await asanaClient.getProjectTaskCount(project.gid!);
-          itemCount = responseProject?.data?.data?.num_tasks ?? 0;
-        } catch (error) {
-          console.warn(`Error fetching project task count for project ${project.gid}: ${serializeError(error)}`);
+        if (!rateLimited) {
+          try {
+            const responseProject = await asanaClient.getProjectTaskCount(project.gid!);
+            itemCount = responseProject?.data?.data?.num_tasks ?? 0;
+          } catch (error) {
+            if (axios.isAxiosError(error) && error.response?.status === 429) {
+              if (!rateLimited) console.warn('Asana task counts are rate limited. Skipping remaining optional task counts.');
+              rateLimited = true;
+            } else {
+              console.warn(`Error fetching project task count for project ${project.gid}: ${serializeError(error)}`);
+            }
+          }
         }
 
         return {
