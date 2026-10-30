@@ -94,12 +94,12 @@ describe('production error regressions', () => {
     expect(handleExtractionError(httpError(status as number)).error?.code).toBe(code);
   });
 
-  it.each(['-1', 'Infinity', 'NaN', '0'])('uses a valid delay when Retry-After is %s', (header) => {
+  it.each(['-1', 'Infinity', 'NaN', '1.5'])('uses a valid delay when Retry-After is %s', (header) => {
     expect(handleExtractionError(httpError(429, header)).delay).toBe(60);
   });
 
-  it('rounds Retry-After up to a whole second', () => {
-    expect(handleExtractionError(httpError(429, '1.5')).delay).toBe(2);
+  it('preserves zero-second Retry-After', () => {
+    expect(handleExtractionError(httpError(429, '0')).delay).toBe(0);
   });
 
   it('keeps the selected project section and only custom fields declared by its metadata', async () => {

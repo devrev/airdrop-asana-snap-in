@@ -1,6 +1,7 @@
 import type { ExternalSystemItemLoadingResponse, Mappers } from '@devrev/airsync-sdk';
 import axios from 'axios';
 
+import { parseRetryAfter } from '@utils/retry-after';
 import { serializeError } from '@utils/serialize-error';
 
 export type IdResolver = (devrevId: string) => Promise<string | null>;
@@ -42,8 +43,10 @@ export async function resolveRef(ref: unknown, resolveId: IdResolver): Promise<s
 /** Handle loading errors, returning a delay for 429s or an error message otherwise. */
 export function handleLoadingError(error: unknown): Extract<ExternalSystemItemLoadingResponse, { status: 'delay' | 'error' }> {
   if (axios.isAxiosError(error) && error.response?.status === 429) {
-    // Fall back to 60s if Retry-After header is missing or non-numeric
-    const retryAfter = Number(error.response.headers['retry-after']) || 60;
+    const retryAfter = parseRetryAfter(error.response.headers['retry-after']);
+    if (typeof retryAfter !== 'number') {
+      return { status: 'error', error: retryAfter.error };
+    }
     return { status: 'delay', delaySeconds: retryAfter };
   }
 

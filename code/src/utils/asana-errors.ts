@@ -6,13 +6,16 @@ import {
 import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
+import { parseRetryAfter } from '@utils/retry-after';
 import { serializeError } from '@utils/serialize-error';
 
 export function describeAsanaError(error: unknown, scope: 'project' | 'workspace' | 'request'): Exclude<TaskResult, { status: 'success' | 'progress' }> {
   const status = axios.isAxiosError(error) ? error.response?.status : undefined;
   if (status === 429 && axios.isAxiosError(error)) {
-    const retryAfter = Number(error.response?.headers['retry-after']);
-    return { status: 'delay', delaySeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : 60 };
+    const retryAfter = parseRetryAfter(error.response?.headers['retry-after']);
+    return typeof retryAfter === 'number'
+      ? { status: 'delay', delaySeconds: retryAfter }
+      : { status: 'error', error: retryAfter.error };
   }
 
   let code: AirSyncErrorCode | undefined;

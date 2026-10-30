@@ -301,7 +301,7 @@ describe('SDK v2 migration over HTTP', () => {
     expect(state?.stateVersion).toBe(2);
   });
 
-  it.each([['120', 120], [undefined, 60], ['invalid', 60]])(
+  it.each([['120', 120], ['0', 0], [undefined, 60], ['invalid', 60]])(
     'preserves Retry-After %s as %i seconds without retrying in process', async (retryAfter, expected) => {
       server.setRoute({ method: 'GET', path: usersPath, status: 429,
         headers: retryAfter === undefined ? {} : { 'Retry-After': retryAfter }, body: { errors: [] } });
@@ -312,6 +312,26 @@ describe('SDK v2 migration over HTTP', () => {
       expect(state?.connectorState.users).toEqual(initialState.users);
     }
   );
+
+  it('preserves a zero-second metadata delay through the SDK callback', async () => {
+    server.setRoute({ method: 'GET', path: fieldsPath, status: 429,
+      headers: { 'Retry-After': '0' }, body: { errors: [] } });
+    const { callback } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
+    expect(callback.event_type).toBe('METADATA_EXTRACTION_DELAYED');
+    expect(callback.event_data.delay).toBe(0);
+    expect(server.getRequestCount('GET', sectionsPath)).toBe(0);
+  });
+
+  it('honors HTTP-date retry deadlines through the SDK callback', async () => {
+    const retryAt = new Date(Date.now() + 300000).toUTCString();
+    server.setRoute({ method: 'GET', path: usersPath, status: 429,
+      headers: { 'Retry-After': retryAt }, body: { errors: [] } });
+    const { callback } = await runWorker('data-extraction');
+    expect(callback.event_type).toBe('DATA_EXTRACTION_DELAYED');
+    expect(callback.event_data.delay).toBeGreaterThanOrEqual(290);
+    expect(callback.event_data.delay).toBeLessThanOrEqual(300);
+    expect(server.getRequestCount('GET', usersPath)).toBe(1);
+  });
 
   it('migrates flat v1 state, saves the timeout cursor, and resumes on the next page', async () => {
     server.setRoute({ method: 'GET', path: usersPath, status: 200, delay: 100,
@@ -406,14 +426,14 @@ describe('SDK v2 migration over HTTP', () => {
     expect(server.getRequests('PUT', '/api/1.0/tasks/12345')[0].body).toEqual({ data: { name: 'Title only' } });
   });
 
-  it('propagates a loader callback rate limit and retains the item cursor', async () => {
+  it.each(['23', '0'])('propagates loader Retry-After %s and retains the item cursor', async (retryAfter) => {
     serveLoaderFile();
     server.setRoute({ method: 'GET', path: targetMapperPath, status: 404 });
     server.setRoute({ method: 'POST', path: '/api/1.0/tasks', status: 429,
-      headers: { 'Retry-After': '23' }, body: { errors: [] } });
+      headers: { 'Retry-After': retryAfter }, body: { errors: [] } });
     const { callback, state } = await runWorker('load-data', event(EventType.ContinueLoadingData));
     expect(callback.event_type).toBe('DATA_LOADING_DELAYED');
-    expect(callback.event_data.delay).toBe(23);
+    expect(callback.event_data.delay).toBe(Number(retryAfter));
     expect(state?.sdkState.fromDevRev).toMatchObject({ filesToLoad: [{ lineToProcess: 0, completed: false }] });
     expect(server.getRequestCount('POST', '/internal/airdrop.sync-mapper-record.create')).toBe(0);
   });

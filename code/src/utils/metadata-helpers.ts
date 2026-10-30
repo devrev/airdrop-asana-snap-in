@@ -13,7 +13,7 @@ import { describeAsanaError } from '@utils/asana-errors';
 import { type ExtractListResponse } from '@utils/data-helpers';
 import { serializeError } from '@utils/serialize-error';
 
-function describeMetadataError(action: string, error: unknown): ExtractListResponse {
+export function describeMetadataError(action: string, error: unknown): ExtractListResponse {
   const result = describeAsanaError(error, 'request');
   if (result.status === 'delay') return { delay: result.delaySeconds };
   return { error: { ...result.error, message: `Error ${action}: ${serializeError(error)}` } };
@@ -33,13 +33,18 @@ function mapAsanaTypeToMetadataType(asanaType: string): FieldType {
 
 /** Build a DevRev field definition from an Asana custom field. */
 export function buildCustomFieldDefinition(customField: AsanaCustomField): Field {
-  const fieldType = mapAsanaTypeToMetadataType(customField.type || 'text');
+  const isFormulaField = customField.representation_type === 'formula' || customField.is_formula_field === true;
+  const fieldType = isFormulaField ? 'text' : mapAsanaTypeToMetadataType(customField.type || 'text');
 
   const fieldDef: Field = {
     name: customField.name || `Custom Field ${customField.gid}`,
     description: customField.description || `Asana custom field: ${customField.name}`,
     type: fieldType,
   };
+
+  if (isFormulaField) {
+    fieldDef.is_read_only = true;
+  }
 
   if (customField.type === CustomFieldType.ENUM || customField.type === CustomFieldType.MULTI_ENUM) {
     const enumOptions = customField.enum_options ?? [];

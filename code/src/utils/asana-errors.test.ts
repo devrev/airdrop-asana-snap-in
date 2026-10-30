@@ -29,12 +29,12 @@ describe('Asana common errors', () => {
     if (result.status === 'error') expect(result.error.code).toBe(code);
   });
 
-  it.each([undefined, 'invalid', '-1', '0', 'Infinity', 'NaN'])('uses a bounded default for Retry-After %s', (header) => {
+  it.each([undefined, 'invalid', '-1', 'Infinity', 'NaN'])('uses a bounded default for Retry-After %s', (header) => {
     expect(describeAsanaError(httpError(429, header), 'project')).toEqual({ status: 'delay', delaySeconds: 60 });
   });
 
-  it('rounds a positive Retry-After up to whole seconds', () => {
-    expect(describeAsanaError(httpError(429, '1.5'), 'project')).toEqual({ status: 'delay', delaySeconds: 2 });
+  it('preserves a zero-second Retry-After', () => {
+    expect(describeAsanaError(httpError(429, '0'), 'project')).toEqual({ status: 'delay', delaySeconds: 0 });
   });
 
   it.each([new AxiosError('Network error'), new Error('Timeout')])('keeps transient failures uncoded', (error) => {

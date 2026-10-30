@@ -217,7 +217,7 @@ The SDK persists connector state automatically when it sends the task response; 
 
 Uncoded phase failures recheck project access before escalating. Metadata endpoint 404s and individual task/comment/attachment failures do not imply project deletion while the project remains accessible. Reverse-loading callbacks recheck project access on an item failure; a confirmed common error aborts loading before advancing the item cursor, and the phase guard preserves the common code across the SDK's catch/report handling. Item-specific errors otherwise retain the SDK's failed-item behavior. No DevRev artifact, mapper or download error is directly classified as an Asana authorization failure.
 
-HTTP 429 remains a delay; project/metadata/discovery checks use a positive, finite Retry-After rounded up to whole seconds or 60 seconds by default. Network errors, timeouts, 5xx responses, malformed requests and conflicts remain uncoded; normal HTTP retries still apply. An archived but accessible project is not treated as deleted or deactivated. Invalid credentials do not establish user deletion, so the connector does not emit `USER_DELETED`. The guard adds one project read per phase and additional reads when diagnosing failures. Attachment access lost after the phase's initial check may still be handled as an item failure by the SDK; the next phase or invocation checks project access again.
+HTTP 429 remains a delay; all phases use parsed nonnegative integer Retry-After seconds or UTC HTTP dates, including zero, and default invalid/missing values to 60 seconds. Network errors, timeouts, 5xx responses, malformed requests and conflicts remain uncoded; normal HTTP retries still apply. An archived but accessible project is not treated as deleted or deactivated. Invalid credentials do not establish user deletion, so the connector does not emit `USER_DELETED`. The guard adds one project read per phase and additional reads when diagnosing failures. Attachment access lost after the phase's initial check may still be handled as an item failure by the SDK; the next phase or invocation checks project access again.
 
 ## Development Workflow
 
@@ -343,6 +343,17 @@ The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` 
 
 Successful metadata extraction persists `ExtractorState.taskFieldIds`. `extractTaskWithSubtasks` buffers copies with only those custom fields and, for root tasks, only the selected project's memberships. Older saved state without field IDs retains its prior custom-field behavior until metadata next runs. Disabled enum options remain declared because historical tasks can still contain them. Attachment-only comments use their attachment names (or `Attachment`) when HTML and text provide no body.
 
-`filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and validates positive finite whole-second delays for 429. Item 404 and transient service failures remain uncoded.
+`filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and parses nonnegative integer delays or UTC HTTP dates for 429. Item 404 and transient service failures remain uncoded.
 
 `code/src/utils/production-regressions.test.ts` covers project retention without task counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.
+
+
+### Consolidated normalization and retry coverage
+
+Formula custom fields request `representation_type` and `is_formula_field`, use read-only text metadata, and normalize the computed `display_value`. Explicit empty text values are preserved.
+
+`code/src/utils/retry-after.ts` parses nonnegative integer seconds, including zero, and UTC HTTP dates. Missing/invalid values use 60 seconds; valid digit sequences above the safe integer range return an uncoded error instead of retrying early. Shared Asana error classification, loading errors and every extraction delay consumer preserve this behavior and existing common access/deletion codes.
+
+`npm run test:unit -- --runInBand` selects direct connector-function scenarios using `code/jest.unit.config.js`. The full Jest suite retains its existing coverage gate. Scenario coverage is listed in `docs/unit-test-coverage.md`; the added scenario suites include normalization, reverse mapping, metadata/permissions and control flow.
+
+Dependency security also pins follow-redirects 1.16.2 (SNYK-JS-FOLLOWREDIRECTS-21762031); qs 6.16.2 addresses SNYK-JS-QS-21755395. These dependency fixes require a fresh Snyk scan; installing patched versions alone is not scanner clearance.

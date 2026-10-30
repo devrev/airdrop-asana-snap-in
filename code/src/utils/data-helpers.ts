@@ -63,6 +63,7 @@ export function prepareStateForExtraction(adapter: ExtractionAdapter<ExtractorSt
 export function handleExtractionError(error: unknown): ExtractListResponse {
   const failure = describeAsanaError(error, 'request');
   if (failure.status === 'delay') return { delay: failure.delaySeconds };
+  if (axios.isAxiosError(error) && error.response?.status === 429) return { error: failure.error };
 
   const errorMessage = `Error while extracting data: ${serializeError(error)}`;
   return { error: { ...failure.error, message: errorMessage } };
