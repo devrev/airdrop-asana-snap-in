@@ -285,6 +285,6 @@ processLoadingTask<LoaderState>({
         create: guard.protectLoading(itemType.create),
         update: guard.protectLoading(itemType.update),
       })),
-    }));
+    }), { deferPreflight: true });
   },
 });

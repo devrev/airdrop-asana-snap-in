@@ -32,6 +32,7 @@ export function describeAsanaError(error: unknown, scope: 'project' | 'workspace
 
 export class ProjectAccessGuard {
   private failure?: Extract<TaskResult, { status: 'error' }>;
+  private preflight?: ReturnType<ProjectAccessGuard['check']>;
 
   constructor(private readonly client: AsanaClient) {}
 
@@ -43,12 +44,20 @@ export class ProjectAccessGuard {
     }
   }
 
-  async run(task: () => Promise<TaskResult>): Promise<TaskResult> {
-    const failure = await this.check();
+  private checkOnce() {
+    return this.preflight ??= this.check();
+  }
+
+  async run(task: () => Promise<TaskResult>, { deferPreflight = false }: { deferPreflight?: boolean } = {}): Promise<TaskResult> {
+    const failure = deferPreflight ? undefined : await this.checkOnce();
     if (failure) return failure;
 
     const result = await task();
     if (this.failure) return this.failure;
+    if (deferPreflight && result.status !== 'error') {
+      const accessFailure = await this.checkOnce();
+      if (accessFailure) return accessFailure;
+    }
     if (result.status === 'error' && !result.error.code) {
       const accessFailure = await this.check();
       if (accessFailure?.status === 'error' && accessFailure.error.code) return accessFailure;
@@ -59,6 +68,12 @@ export class ProjectAccessGuard {
   protectLoading<Item>(load: ExternalSystemLoadingFunction<Item>): ExternalSystemLoadingFunction<Item> {
     return async (params) => {
       if (this.failure) throw new Error(this.failure.error.message);
+      const preflight = await this.checkOnce();
+      if (preflight?.status === 'delay') return preflight;
+      if (preflight?.status === 'error') {
+        this.failure = preflight;
+        throw new Error(preflight.error.message);
+      }
       const result = await load(params);
       if (result.status === 'error') {
         const failure = await this.check();

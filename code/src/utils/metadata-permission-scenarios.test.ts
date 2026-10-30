@@ -44,8 +44,8 @@ describe('metadata scenario builders', () => {
       'timestamp',
       'reference',
     ]);
-    expect(definitions[2].enum?.values).toEqual([{ key: 'opt-high', name: 'Urgent' }, { key: 'opt-old', name: 'Old value' }]);
-    expect(definitions[3].enum?.values).toEqual([{ key: 'area-one', name: 'Area One' }]);
+    expect(definitions[2].enum?.values).toEqual([{ key: 'opt-high', name: 'Urgent', is_deprecated: false }, { key: 'opt-old', name: 'Old value', is_deprecated: true }]);
+    expect(definitions[3].enum?.values).toEqual([{ key: 'area-one', name: 'Area One', is_deprecated: false }]);
     expect(definitions[3].collection).toEqual({});
     expect(definitions[5]).toMatchObject({
       reference: { refers_to: { '#record:users': {} } },
@@ -56,7 +56,7 @@ describe('metadata scenario builders', () => {
       ...fields[2],
       enum_options: [{ gid: 'opt-high', name: 'Critical', enabled: true }],
     });
-    expect(renamedEnum.enum?.values).toEqual([{ key: 'opt-high', name: 'Critical' }]);
+    expect(renamedEnum.enum?.values).toEqual([{ key: 'opt-high', name: 'Critical', is_deprecated: false }]);
   });
 
   it('maps formula fields to read-only text even when their base Asana type is number', () => {

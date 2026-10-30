@@ -200,8 +200,9 @@ export class AsanaClient {
 
   /** Fetch paginated tasks for the configured project. */
   async getTasks(params: GetAsanaTasksRequest): Promise<AxiosResponse<GetAsanaTasksResponse>> {
-    return this.httpClient.get(`/projects/${this.projectId}/tasks`, {
+    return this.httpClient.get(params.modified_since ? '/tasks' : `/projects/${this.projectId}/tasks`, {
       params: {
+        ...(params.modified_since && { project: this.projectId }),
         limit: ASANA_PAGE_LIMIT,
         opt_fields: TASK_FIELDS,
         ...params,

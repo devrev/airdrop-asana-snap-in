@@ -132,7 +132,7 @@ describe('production error regressions', () => {
     const field = buildCustomFieldDefinition({ gid: 'enum', type: 'enum', enum_options: [
       { gid: 'active', name: 'Active', enabled: true }, { gid: 'legacy', name: 'Legacy', enabled: false },
     ] } as any);
-    expect(field.enum?.values).toContainEqual({ key: 'legacy', name: 'Legacy' });
+    expect(field.enum?.values).toContainEqual({ key: 'legacy', name: 'Legacy', is_deprecated: true });
   });
 
   it('preserves an attachment-only comment with a usable body', () => {

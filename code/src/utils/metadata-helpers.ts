@@ -50,7 +50,7 @@ export function buildCustomFieldDefinition(customField: AsanaCustomField): Field
     const enumOptions = customField.enum_options ?? [];
     fieldDef.enum = {
       values: enumOptions
-        .map((opt) => ({ key: opt.gid!, name: opt.name })),
+        .map((opt) => ({ key: opt.gid!, name: opt.name, is_deprecated: opt.enabled === false })),
     };
 
     if (customField.type === CustomFieldType.MULTI_ENUM) {

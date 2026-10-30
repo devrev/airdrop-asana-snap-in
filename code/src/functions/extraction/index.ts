@@ -2,6 +2,13 @@ import { AirSyncEvent, spawn } from '@devrev/airsync-sdk';
 
 import initialDomainMapping from '@asana/initial_domain_mapping.json';
 
+export interface TaskTraversalFrame {
+  taskGid: string;
+  extracted: boolean;
+  offset: string;
+  lastExtractedSubtaskIndex: number;
+}
+
 // This interface defines the adapter state used for data extraction, ensuring that the
 // process can be resumed and managed effectively between snap-in invocations.
 // The 'offset' field is utilized for handling pagination. It helps in keeping track of
@@ -21,6 +28,8 @@ export interface ExtractorState {
     offset: string;
     total: number;
     lastExtractedTaskIndex: number;
+    traversal?: TaskTraversalFrame[];
+    associations?: { offset: string; completed: boolean };
   };
   attachments: {
     completed: boolean;

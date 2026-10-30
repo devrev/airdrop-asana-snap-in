@@ -67,7 +67,7 @@ export interface PaginatedRequestWithLimit extends PaginatedRequest {
   limit?: number;
 }
 
-export type GetAsanaTasksRequest = PaginatedRequestWithLimit;
+export type GetAsanaTasksRequest = PaginatedRequestWithLimit & { modified_since?: string };
 export type GetAsanaSubtasksRequest = PaginatedRequestWithLimit;
 export type GetAsanaProjectsRequest = PaginatedRequestWithLimit;
 export type GetAsanaTagsRequest = PaginatedRequestWithLimit;

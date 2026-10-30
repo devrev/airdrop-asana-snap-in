@@ -89,6 +89,15 @@ describe('AsanaClient', () => {
     });
   });
 
+  it('uses the filtered tasks endpoint for modified_since while retaining project scope and pagination', async () => {
+    const client = createClient();
+    await client.getTasks({ modified_since: '2024-06-01T00:00:00Z', offset: 'page-2' });
+    expect(mockGet).toHaveBeenCalledWith('/tasks', { params: expect.objectContaining({
+      project: 'project-456', modified_since: '2024-06-01T00:00:00Z', offset: 'page-2',
+      limit: 100, opt_fields: expect.any(String),
+    }) });
+  });
+
   describe('getSubtasksForTask', () => {
     it('should call correct URL with taskGid', async () => {
       const client = createClient();
