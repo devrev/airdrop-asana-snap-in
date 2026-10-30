@@ -3,7 +3,7 @@
   "report_type": "connector_smoke_test",
   "policy": "airsync-smoke-v1",
   "status": "passed",
-  "generated_at": "2026-10-30T10:38:14Z",
+  "generated_at": "2026-10-30T11:37:03Z",
   "generator": {
     "name": "airsync-cli",
     "version": "v0.0.1-5-g1e9ccfa"
@@ -12,46 +12,22 @@
   "dev_org_id": "don:identity:dvrv-us-1:devo/1Db8mOoXww",
   "tested_revision": {
     "canonicalization": "connector-snapshot-v1",
-    "digest": "sha256:a87caaa00f3d8e53fe064fee44163f9830d58e7e1ef8fe7f1e3324e25d1a074b"
+    "digest": "sha256:7f57f698f5f106032494295e8e9a779a6a464543a15daa09ade83299303072ad"
   },
-  "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3",
+  "sync_unit_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:external_system/1200065617420461:sync_unit/4c0af8fc-9439-445b-8778-b41e4693e0a7",
   "tests": [
     {
       "status": "passed",
       "sync_type": "initial",
       "mode": "sync_to_devrev",
-      "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/9baf1678-2c4a-4fdb-b85f-99f6172e4d40",
-      "started_at": "2026-10-30T10:29:57Z",
-      "ended_at": "2026-10-30T10:30:47Z",
+      "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/4c0af8fc-9439-445b-8778-b41e4693e0a7:sync_history/0fcb1ed6-3816-42cb-9eee-76fcf7c59d18",
+      "started_at": "2026-10-30T11:32:00Z",
+      "ended_at": "2026-10-30T11:32:38Z",
       "assertions": [],
       "source_items": [
         {
           "type": "attachments",
-          "count": 12,
-          "is_cumulative": false,
-          "is_shared": false
-        },
-        {
-          "type": "Comments",
-          "count": 24,
-          "is_cumulative": false,
-          "is_shared": false
-        },
-        {
-          "type": "Links",
-          "count": 12,
-          "is_cumulative": false,
-          "is_shared": false
-        },
-        {
-          "type": "Subtasks",
-          "count": 12,
-          "is_cumulative": false,
-          "is_shared": false
-        },
-        {
-          "type": "Tasks",
-          "count": 20,
+          "count": 1,
           "is_cumulative": false,
           "is_shared": false
         },
@@ -60,57 +36,39 @@
           "count": 1,
           "is_cumulative": false,
           "is_shared": false
+        },
+        {
+          "type": "Links",
+          "count": 2,
+          "is_cumulative": false,
+          "is_shared": false
+        },
+        {
+          "type": "Subtasks",
+          "count": 2,
+          "is_cumulative": false,
+          "is_shared": false
+        },
+        {
+          "type": "Tasks",
+          "count": 3,
+          "is_cumulative": false,
+          "is_shared": false
+        },
+        {
+          "type": "Comments",
+          "count": 2,
+          "is_cumulative": false,
+          "is_shared": false
         }
       ],
       "destination_items": [
         {
           "type": "attachments",
-          "count": 12,
+          "count": 1,
           "outcomes": {
             "already_exists": 0,
-            "created": 12,
-            "deleted": 0,
-            "duplicate": 0,
-            "failed": 0,
-            "filtered": 0,
-            "merged": 0,
-            "updated": 0
-          }
-        },
-        {
-          "type": "workComments",
-          "count": 24,
-          "outcomes": {
-            "already_exists": 0,
-            "created": 24,
-            "deleted": 0,
-            "duplicate": 0,
-            "failed": 0,
-            "filtered": 0,
-            "merged": 0,
-            "updated": 0
-          }
-        },
-        {
-          "type": "links",
-          "count": 12,
-          "outcomes": {
-            "already_exists": 0,
-            "created": 12,
-            "deleted": 0,
-            "duplicate": 0,
-            "failed": 0,
-            "filtered": 0,
-            "merged": 0,
-            "updated": 0
-          }
-        },
-        {
-          "type": "issues",
-          "count": 32,
-          "outcomes": {
-            "already_exists": 0,
-            "created": 32,
+            "created": 1,
             "deleted": 0,
             "duplicate": 0,
             "failed": 0,
@@ -132,14 +90,56 @@
             "merged": 0,
             "updated": 0
           }
+        },
+        {
+          "type": "links",
+          "count": 2,
+          "outcomes": {
+            "already_exists": 0,
+            "created": 2,
+            "deleted": 0,
+            "duplicate": 0,
+            "failed": 0,
+            "filtered": 0,
+            "merged": 0,
+            "updated": 0
+          }
+        },
+        {
+          "type": "issues",
+          "count": 5,
+          "outcomes": {
+            "already_exists": 0,
+            "created": 5,
+            "deleted": 0,
+            "duplicate": 0,
+            "failed": 0,
+            "filtered": 0,
+            "merged": 0,
+            "updated": 0
+          }
+        },
+        {
+          "type": "workComments",
+          "count": 2,
+          "outcomes": {
+            "already_exists": 0,
+            "created": 2,
+            "deleted": 0,
+            "duplicate": 0,
+            "failed": 0,
+            "filtered": 0,
+            "merged": 0,
+            "updated": 0
+          }
         }
       ],
       "errors": [],
       "warnings": [
         {
           "short_message": "Warning while processing works.",
-          "long_message": "98204c109028f128 (occurred 10 times)",
-          "occurrence": 10
+          "long_message": "be28f1457c320ee3 (occurred 20 times)",
+          "occurrence": 20
         }
       ]
     },
@@ -147,23 +147,11 @@
       "status": "passed",
       "sync_type": "incremental",
       "mode": "sync_to_devrev",
-      "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/0e53df82-90c9-47a5-832c-e5b4fc53a2c3:sync_history/bc2edadc-c176-46a1-84e2-8a0e46ad00b9",
-      "started_at": "2026-10-30T10:34:14Z",
-      "ended_at": "2026-10-30T10:34:49Z",
+      "history_id": "don:integration:dvrv-us-1:devo/1Db8mOoXww:external_system_type/ADAAS:sync_unit/4c0af8fc-9439-445b-8778-b41e4693e0a7:sync_history/c6a4336a-af49-4139-b48a-96bc6617bff3",
+      "started_at": "2026-10-30T11:35:07Z",
+      "ended_at": "2026-10-30T11:35:40Z",
       "assertions": [],
       "source_items": [
-        {
-          "type": "Subtasks",
-          "count": 8,
-          "is_cumulative": false,
-          "is_shared": false
-        },
-        {
-          "type": "Tasks",
-          "count": 10,
-          "is_cumulative": false,
-          "is_shared": false
-        },
         {
           "type": "Access Rules",
           "count": 1,
@@ -171,31 +159,65 @@
           "is_shared": false
         },
         {
-          "type": "attachments",
-          "count": 6,
+          "type": "Comments",
+          "count": 2,
+          "is_cumulative": false,
+          "is_shared": false
+        },
+        {
+          "type": "Subtasks",
+          "count": 2,
+          "is_cumulative": false,
+          "is_shared": false
+        },
+        {
+          "type": "Tasks",
+          "count": 4,
           "is_cumulative": false,
           "is_shared": false
         },
         {
           "type": "Links",
-          "count": 8,
-          "is_cumulative": false,
-          "is_shared": false
-        },
-        {
-          "type": "Comments",
-          "count": 10,
+          "count": 2,
           "is_cumulative": false,
           "is_shared": false
         }
       ],
       "destination_items": [
         {
-          "type": "issues",
-          "count": 18,
+          "type": "authorizationPolicies",
+          "count": 1,
           "outcomes": {
             "already_exists": 0,
-            "created": 14,
+            "created": 1,
+            "deleted": 0,
+            "duplicate": 0,
+            "failed": 0,
+            "filtered": 0,
+            "merged": 0,
+            "updated": 0
+          }
+        },
+        {
+          "type": "workComments",
+          "count": 2,
+          "outcomes": {
+            "already_exists": 0,
+            "created": 2,
+            "deleted": 0,
+            "duplicate": 0,
+            "failed": 0,
+            "filtered": 0,
+            "merged": 0,
+            "updated": 0
+          }
+        },
+        {
+          "type": "issues",
+          "count": 6,
+          "outcomes": {
+            "already_exists": 0,
+            "created": 2,
             "deleted": 0,
             "duplicate": 0,
             "failed": 0,
@@ -205,13 +227,13 @@
           }
         },
         {
-          "type": "authorizationPolicies",
+          "type": "links",
           "count": 1,
           "outcomes": {
             "already_exists": 0,
             "created": 1,
             "deleted": 0,
-            "duplicate": 0,
+            "duplicate": 1,
             "failed": 0,
             "filtered": 0,
             "merged": 0,
@@ -220,38 +242,10 @@
         },
         {
           "type": "attachments",
-          "count": 6,
+          "count": 0,
           "outcomes": {
             "already_exists": 0,
-            "created": 6,
-            "deleted": 0,
-            "duplicate": 0,
-            "failed": 0,
-            "filtered": 0,
-            "merged": 0,
-            "updated": 0
-          }
-        },
-        {
-          "type": "links",
-          "count": 6,
-          "outcomes": {
-            "already_exists": 0,
-            "created": 6,
-            "deleted": 0,
-            "duplicate": 2,
-            "failed": 0,
-            "filtered": 0,
-            "merged": 0,
-            "updated": 0
-          }
-        },
-        {
-          "type": "workComments",
-          "count": 10,
-          "outcomes": {
-            "already_exists": 0,
-            "created": 10,
+            "created": 0,
             "deleted": 0,
             "duplicate": 0,
             "failed": 0,
@@ -265,8 +259,8 @@
       "warnings": [
         {
           "short_message": "Warning while processing works.",
-          "long_message": "afc1192a2195c500 (occurred 11 times)",
-          "occurrence": 11
+          "long_message": "8fb3e82a1b7d686c (occurred 22 times)",
+          "occurrence": 22
         }
       ]
     }
