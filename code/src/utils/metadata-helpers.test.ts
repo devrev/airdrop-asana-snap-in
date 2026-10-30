@@ -92,15 +92,15 @@ describe('buildCustomFieldDefinition', () => {
         type: 'enum',
         enum: {
           values: [
-            { key: 'opt1', name: 'High' },
-            { key: 'opt2', name: 'Medium' },
-            { key: 'opt3', name: 'Low' },
+            { key: 'opt1', name: 'High', is_deprecated: false },
+            { key: 'opt2', name: 'Medium', is_deprecated: false },
+            { key: 'opt3', name: 'Low', is_deprecated: false },
           ],
         },
       });
     });
 
-    it('should filter out disabled enum options', () => {
+    it('should retain disabled enum options for historical task values', () => {
       const customField: AsanaCustomField & { enum_options: AsanaEnumOption[] } = {
         gid: '12345',
         name: 'Status',
@@ -114,10 +114,11 @@ describe('buildCustomFieldDefinition', () => {
 
       const result = buildCustomFieldDefinition(customField);
 
-      expect(result.enum?.values).toHaveLength(2);
+      expect(result.enum?.values).toHaveLength(3);
       expect(result.enum?.values).toEqual([
-        { key: 'opt1', name: 'Active' },
-        { key: 'opt3', name: 'Pending' },
+        { key: 'opt1', name: 'Active', is_deprecated: false },
+        { key: 'opt2', name: 'Archived', is_deprecated: true },
+        { key: 'opt3', name: 'Pending', is_deprecated: false },
       ]);
     });
   });
@@ -139,10 +140,22 @@ describe('buildCustomFieldDefinition', () => {
       expect(result.type).toBe('enum');
       expect(result.collection).toEqual({});
       expect(result.enum?.values).toEqual([
-        { key: 'tag1', name: 'Frontend' },
-        { key: 'tag2', name: 'Backend' },
+        { key: 'tag1', name: 'Frontend', is_deprecated: false },
+        { key: 'tag2', name: 'Backend', is_deprecated: false },
       ]);
     });
+  });
+
+  it.each(['enum', 'multi_enum'])('marks disabled %s options deprecated without losing historical values', (type) => {
+    const result = buildCustomFieldDefinition({ gid: 'field', name: 'Choices', type,
+      enum_options: [{ gid: 'active', name: 'Active', enabled: true }, { gid: 'old', name: 'Old', enabled: false },
+        { gid: 'default', name: 'Default' }],
+    } as AsanaCustomField);
+    expect(result.enum?.values).toEqual([
+      { key: 'active', name: 'Active', is_deprecated: false },
+      { key: 'old', name: 'Old', is_deprecated: true },
+      { key: 'default', name: 'Default', is_deprecated: false },
+    ]);
   });
 
   describe('date fields', () => {

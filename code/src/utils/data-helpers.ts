@@ -8,6 +8,7 @@ import {
   normalizeAsanaGroupMembership,
 } from '@asana/data-normalization';
 import type { AsanaAttachment, AsanaLink, AsanaStory, AsanaTask } from '@asana/types';
+import { describeAsanaError } from '@utils/asana-errors';
 import {
   extractAttachmentGidFromCommentText,
   extractAttachmentsFromTask,
@@ -16,7 +17,7 @@ import {
 } from '@utils/attachment-helpers';
 import { serializeError } from '@utils/serialize-error';
 
-import { ExtractorState, initialState } from '../functions/extraction/index';
+import { ExtractorState, initialState, TaskTraversalFrame } from '../functions/extraction/index';
 
 export interface ExtractListResponse {
   delay?: number;
@@ -60,14 +61,12 @@ export function prepareStateForExtraction(adapter: ExtractionAdapter<ExtractorSt
 
 /** Handle extraction errors, returning a delay for 429s or an error record otherwise. */
 export function handleExtractionError(error: unknown): ExtractListResponse {
-  if (axios.isAxiosError(error) && error.response?.status === 429) {
-    // Fall back to 60s if Retry-After header is missing or non-numeric
-    const retryAfter = Number(error.response.headers['retry-after']) || 60;
-    return { delay: retryAfter };
-  }
+  const failure = describeAsanaError(error, 'request');
+  if (failure.status === 'delay') return { delay: failure.delaySeconds };
+  if (axios.isAxiosError(error) && error.response?.status === 429) return { error: failure.error };
 
   const errorMessage = `Error while extracting data: ${serializeError(error)}`;
-  return { error: { message: errorMessage } };
+  return { error: { ...failure.error, message: errorMessage } };
 }
 
 /** Asana offset tokens expire after a while, so a token saved in state can be dead by the next invocation. */
@@ -161,34 +160,42 @@ export async function extractGroups(
     const response = await fetchPageRecoveringExpiredOffset(
       offset,
       (o) => asanaClient.getTeamsForWorkspace({ ...(o ? { offset: o } : {}) }),
-      () => (adapter.state.groups.offset = '')
+      () => {
+        adapter.state.groups.offset = '';
+        adapter.state.groups.lastExtractedTeamIndex = -1;
+      }
     );
 
     const teams = response.data?.data || [];
-    for (const team of teams) {
+    for (let index = (adapter.state.groups.lastExtractedTeamIndex ?? -1) + 1; index < teams.length; index++) {
+      const team = teams[index];
       if (adapter.isTimeout) {
         console.log('Timeout detected during team processing.');
         return;
       }
 
-      if (!team.gid) continue;
+      if (!team.gid) {
+        adapter.state.groups.lastExtractedTeamIndex = index;
+        continue;
+      }
 
       const groupItem = normalizeAsanaGroup(team.gid, team.name ?? `Team ${team.gid}`, (team as unknown as { description?: string }).description);
+      const teamUserGids = adapter.shouldExtract(ItemType.GROUP_MEMBERSHIPS)
+        ? await fetchTeamMemberUserGids(team.gid, asanaClient) : [];
+
       await adapter.getRepo(ItemType.GROUPS)?.push([groupItem]);
       adapter.state.groups.total += 1;
-
-      if (adapter.shouldExtract(ItemType.GROUP_MEMBERSHIPS)) {
-        const teamUserGids = await fetchTeamMemberUserGids(team.gid, asanaClient);
-        if (teamUserGids.length > 0) {
-          const groupMembershipItem = normalizeAsanaGroupMembership(team.gid, teamUserGids);
-          await adapter.getRepo(ItemType.GROUP_MEMBERSHIPS)?.push([groupMembershipItem]);
-          adapter.state.group_memberships.total += 1;
-        }
+      if (teamUserGids.length > 0) {
+        const groupMembershipItem = normalizeAsanaGroupMembership(team.gid, teamUserGids);
+        await adapter.getRepo(ItemType.GROUP_MEMBERSHIPS)?.push([groupMembershipItem]);
+        adapter.state.group_memberships.total += 1;
       }
+      adapter.state.groups.lastExtractedTeamIndex = index;
     }
 
     offset = response.data?.next_page?.offset || '';
     adapter.state.groups.offset = offset;
+    adapter.state.groups.lastExtractedTeamIndex = -1;
 
     console.log(`Groups extraction: page completed. Extracted ${teams.length} teams.`);
   } while (offset);
@@ -242,29 +249,21 @@ export async function filterAlreadyMappedAttachments(
       continue;
     }
 
-    try {
-      const response = await adapter.mappers.getByExternalId({
-        sync_unit: syncUnit,
-        external_id: attachment.gid,
-        target_type: SyncMapperRecordTargetType.ARTIFACT,
-      });
+    const response = await adapter.mappers.getByExternalId({
+      sync_unit: syncUnit,
+      external_id: attachment.gid,
+      target_type: SyncMapperRecordTargetType.ARTIFACT,
+    });
 
-      if (response?.sync_mapper_record) {
-        console.log(
-          `Attachment extraction: skipping ${attachment.gid} ("${attachment.name}") — ` +
-            `already mapped to a DevRev artifact.`
-        );
-        continue;
-      }
-
-      kept.push(attachment);
-    } catch (error) {
-      console.warn(
-        `Attachment extraction: could not check mapper record for ${attachment.gid}, ` +
-          `extracting it anyway: ${serializeError(error)}`
+    if (response?.sync_mapper_record) {
+      console.log(
+        `Attachment extraction: skipping ${attachment.gid} ("${attachment.name}") — ` +
+          `already mapped to a DevRev artifact.`
       );
-      kept.push(attachment);
+      continue;
     }
+
+    kept.push(attachment);
   }
 
   return kept;
@@ -310,26 +309,49 @@ export async function fetchAllSubtasks(taskGid: string, asanaClient: AsanaClient
   return subtasks;
 }
 
-/**
- * Recursively extract a task and its subtasks (up to MAX_SUBTASK_DEPTH levels).
- * All extracted data is accumulated into the provided buffer rather than pushed
- * directly to repos, so the caller can flush atomically after the entire task
- * tree is processed. This prevents duplicate data if a timeout interrupts extraction.
- */
-export async function extractTaskWithSubtasks(
+function taskIsWithinWindow(task: AsanaTask, extractFrom?: string, extractTo?: string): boolean {
+  const { created_at: createdAt, modified_at: modifiedAt } = task;
+  if (extractFrom && createdAt && modifiedAt && createdAt < extractFrom && modifiedAt < extractFrom) return false;
+  if (extractTo && createdAt && modifiedAt && createdAt > extractTo && modifiedAt > extractTo) return false;
+  return true;
+}
+
+interface TaskTraversalProgress {
+  frames: TaskTraversalFrame[];
+  flush: () => Promise<void>;
+  parentGid?: string;
+}
+
+function scopeTask(task: AsanaTask, projectId: string, taskFieldIds?: string[]): AsanaTask {
+  return {
+    ...task,
+    memberships: task.memberships?.filter((membership) => membership.project?.gid === projectId),
+    ...(taskFieldIds && { custom_fields: task.custom_fields?.filter((field) => !!field.gid && taskFieldIds.includes(field.gid)) }),
+  };
+}
+
+async function extractTaskRecord(
   task: AsanaTask,
   asanaClient: AsanaClient,
   projectId: string,
   buffer: TaskExtractionBuffer,
   adapter: ExtractionAdapter<ExtractorState>,
-  depth: number = 0,
+  depth: number,
   extractFrom?: string,
-  extractTo?: string
+  extractTo?: string,
+  parentGid?: string
 ): Promise<void> {
-  if (depth === 0) {
-    buffer.tasks.push(task);
-  } else {
-    buffer.subtasks.push(task);
+  const includeTask = taskIsWithinWindow(task, depth === 0 && !adapter.shouldExtract(ItemType.SUBTASKS) ? undefined : extractFrom, extractTo);
+  const scopedTask = depth === 0 ? scopeTask(task, projectId, adapter.state?.taskFieldIds) : {
+    ...task,
+    ...(adapter.state?.taskFieldIds && { custom_fields: task.custom_fields?.filter((field) => !!field.gid && adapter.state.taskFieldIds!.includes(field.gid)) }),
+  };
+  if (includeTask) {
+    if (depth === 0) {
+      buffer.tasks.push(scopedTask);
+    } else {
+      buffer.subtasks.push(scopedTask);
+    }
   }
 
   // Fetch comments when comments or attachments are in scope (attachments need
@@ -419,7 +441,7 @@ export async function extractTaskWithSubtasks(
     }
   }
 
-  if (adapter.shouldExtract(ItemType.LINKS) && depth === 0 && task.dependencies && Array.isArray(task.dependencies)) {
+  if (includeTask && adapter.shouldExtract(ItemType.LINKS) && depth === 0 && task.dependencies && Array.isArray(task.dependencies)) {
     const dependencyLinks: AsanaLink[] = task.dependencies
       .filter((dependency) => dependency.gid)
       .map((dependency) => ({
@@ -433,43 +455,63 @@ export async function extractTaskWithSubtasks(
     }
   }
 
+  if (includeTask && depth > 0 && parentGid && adapter.shouldExtract(ItemType.LINKS)) {
+    buffer.links.push({ source_gid: parentGid, target_gid: task.gid ?? '', link_type: LinkType.IS_PARENT_OF });
+  }
+}
+
+export async function extractTaskWithSubtasks(
+  task: AsanaTask,
+  asanaClient: AsanaClient,
+  projectId: string,
+  buffer: TaskExtractionBuffer,
+  adapter: ExtractionAdapter<ExtractorState>,
+  depth: number = 0,
+  extractFrom?: string,
+  extractTo?: string,
+  progress?: TaskTraversalProgress
+): Promise<boolean> {
+  if (adapter.isTimeout) return false;
+  const frames = progress?.frames;
+  if (frames && frames[depth]?.taskGid !== (task.gid ?? '')) {
+    frames.splice(depth, frames.length, { taskGid: task.gid ?? '', extracted: false, offset: '', lastExtractedSubtaskIndex: -1 });
+  }
+  const frame = frames?.[depth];
+  if (!frame?.extracted) {
+    await extractTaskRecord(task, asanaClient, projectId, buffer, adapter, depth, extractFrom, extractTo, progress?.parentGid);
+    await progress?.flush();
+    if (frame) frame.extracted = true;
+  }
+
   if (adapter.shouldExtract(ItemType.SUBTASKS) && task.num_subtasks && task.num_subtasks > 0) {
     if (depth < MAX_SUBTASK_DEPTH) {
-      const subtasks = await fetchAllSubtasks(task.gid ?? '', asanaClient);
-
-      for (const subtask of subtasks) {
-        if (extractFrom) {
-          const createdAt = subtask.created_at;
-          const modifiedAt = subtask.modified_at;
-          const isNew = createdAt && createdAt >= extractFrom;
-          const isModified = modifiedAt && modifiedAt >= extractFrom;
-
-          if (!isNew && !isModified) {
-            continue;
+      let offset = frame?.offset ?? '';
+      do {
+        if (adapter.isTimeout) return false;
+        const response = await fetchPageRecoveringExpiredOffset(
+          offset,
+          (o) => asanaClient.getSubtasksForTask(task.gid ?? '', { ...(o && { offset: o }) }),
+          () => {
+            offset = '';
+            if (frame) { frame.offset = ''; frame.lastExtractedSubtaskIndex = -1; }
+            frames?.splice(depth + 1);
           }
-        }
-
-        if (extractTo) {
-          const createdAt = subtask.created_at;
-          const modifiedAt = subtask.modified_at;
-          const createdBeforeEnd = !createdAt || createdAt <= extractTo;
-          const modifiedBeforeEnd = !modifiedAt || modifiedAt <= extractTo;
-
-          if (!createdBeforeEnd && !modifiedBeforeEnd) {
-            continue;
+        );
+        const subtasks = response.data?.data ?? [];
+        for (let index = (frame?.lastExtractedSubtaskIndex ?? -1) + 1; index < subtasks.length; index++) {
+          if (adapter.isTimeout) return false;
+          const subtask = subtasks[index];
+          if (!progress && taskIsWithinWindow(subtask, extractFrom, extractTo) && adapter.shouldExtract(ItemType.LINKS)) {
+            buffer.links.push({ source_gid: task.gid ?? '', target_gid: subtask.gid ?? '', link_type: LinkType.IS_PARENT_OF });
           }
+          const completed = await extractTaskWithSubtasks(subtask, asanaClient, projectId, buffer, adapter, depth + 1,
+            extractFrom, extractTo, progress && { ...progress, parentGid: task.gid });
+          if (!completed) return false;
+          if (frame) frame.lastExtractedSubtaskIndex = index;
         }
-
-        if (adapter.shouldExtract(ItemType.LINKS)) {
-          buffer.links.push({
-            source_gid: task.gid ?? '',
-            target_gid: subtask.gid ?? '',
-            link_type: LinkType.IS_PARENT_OF,
-          });
-        }
-
-        await extractTaskWithSubtasks(subtask, asanaClient, projectId, buffer, adapter, depth + 1, extractFrom, extractTo);
-      }
+        offset = response.data?.next_page?.offset || '';
+        if (frame) { frame.offset = offset; frame.lastExtractedSubtaskIndex = -1; }
+      } while (offset);
     } else {
       console.warn(
         `Subtask extraction: Task ${task.gid} has ${task.num_subtasks} subtasks at depth ${depth + 1} ` +
@@ -477,11 +519,44 @@ export async function extractTaskWithSubtasks(
       );
     }
   }
+  frames?.splice(depth);
+  return true;
+}
+
+async function extractAssociationChanges(asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>, extractFrom: string, extractTo?: string): Promise<void> {
+  const state = adapter.state.tasks.associations ??= { offset: '', completed: false };
+  while (!state.completed && !adapter.isTimeout) {
+    const response = await fetchPageRecoveringExpiredOffset(state.offset,
+      (offset) => asanaClient.getTasks({ modified_since: extractFrom, ...(offset && { offset }) }),
+      () => { state.offset = ''; });
+    // Asana includes association changes in modified_since without updating modified_at.
+    const tasks = (response.data?.data ?? [])
+      .filter((task) => !taskIsWithinWindow(task, extractFrom) && taskIsWithinWindow(task, undefined, extractTo))
+      .map((task) => ({ ...scopeTask(task, asanaClient.projectId, adapter.state.taskFieldIds),
+        item_url_field: `https://app.asana.com/0/${asanaClient.projectId}/${task.gid}` }));
+    if (tasks.length) {
+      await adapter.getRepo(ItemType.TASKS)?.push(tasks);
+      adapter.state.tasks.total += tasks.length;
+      const links = tasks.flatMap((task) => (task.dependencies ?? []).filter((dependency) => dependency.gid).map((dependency) => ({
+        source_gid: task.gid ?? '', target_gid: dependency.gid ?? '', link_type: LinkType.IS_DEPENDENT_ON,
+      })));
+      if (links.length && adapter.shouldExtract(ItemType.LINKS)) {
+        await adapter.getRepo(ItemType.LINKS)?.push(links);
+        adapter.state.links.total += links.length;
+      }
+    }
+    state.offset = response.data?.next_page?.offset || '';
+    state.completed = !state.offset;
+  }
 }
 
 /** Extract all project tasks and their subtrees (subtasks, comments, attachments, links). */
 export async function extractTasks(asanaClient: AsanaClient, adapter: ExtractionAdapter<ExtractorState>): Promise<void> {
   const { extract_from: extractFrom, extract_to: extractTo } = adapter.event.payload.event_context;
+  const taskModifiedSince = !adapter.shouldExtract(ItemType.SUBTASKS) ? extractFrom : undefined;
+  if (extractFrom && adapter.shouldExtract(ItemType.SUBTASKS)) {
+    await extractAssociationChanges(asanaClient, adapter, extractFrom, extractTo);
+  }
 
   do {
     if (adapter.isTimeout) {
@@ -497,10 +572,11 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: Extraction
 
     const response = await fetchPageRecoveringExpiredOffset(
       adapter.state.tasks.offset,
-      (o) => asanaClient.getTasks({ ...(o && { offset: o }), ...(extractFrom && { modified_since: extractFrom }) }),
+      (o) => asanaClient.getTasks({ ...(o && { offset: o }), ...(taskModifiedSince && { modified_since: taskModifiedSince }) }),
       () => {
         adapter.state.tasks.offset = '';
         adapter.state.tasks.lastExtractedTaskIndex = -1;
+        delete adapter.state.tasks.traversal;
       }
     );
 
@@ -512,17 +588,6 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: Extraction
     const startIndex = adapter.state.tasks.lastExtractedTaskIndex + 1;
 
     for (let i = startIndex; i < projectTasks.length; i++) {
-      // Upper bound filter — Asana API only supports lower bound via modified_since
-      if (extractTo) {
-        const task = projectTasks[i];
-        const createdAfterEnd = task.created_at && task.created_at > extractTo;
-        const modifiedAfterEnd = task.modified_at && task.modified_at > extractTo;
-        if (createdAfterEnd && modifiedAfterEnd) {
-          adapter.state.tasks.lastExtractedTaskIndex = i;
-          continue;
-        }
-      }
-
       const buffer: TaskExtractionBuffer = {
         tasks: [],
         subtasks: [],
@@ -531,37 +596,20 @@ export async function extractTasks(asanaClient: AsanaClient, adapter: Extraction
         links: [],
       };
 
-      await extractTaskWithSubtasks(
-        projectTasks[i],
-        asanaClient,
-        asanaClient.projectId,
-        buffer,
-        adapter,
-        0,
-        extractFrom,
-        extractTo
-      );
-
-      if (buffer.tasks.length > 0) {
-        await adapter.getRepo(ItemType.TASKS)?.push(buffer.tasks);
-        adapter.state.tasks.total += buffer.tasks.length;
-      }
-      if (buffer.subtasks.length > 0) {
-        await adapter.getRepo(ItemType.SUBTASKS)?.push(buffer.subtasks);
-        adapter.state.subtasks.total += buffer.subtasks.length;
-      }
-      if (buffer.comments.length > 0) {
-        await adapter.getRepo(ItemType.COMMENTS)?.push(buffer.comments);
-        adapter.state.comments.total += buffer.comments.length;
-      }
-      if (buffer.attachments.length > 0) {
-        await adapter.getRepo(ItemType.ATTACHMENTS)?.push(buffer.attachments);
-        adapter.state.attachments.total += buffer.attachments.length;
-      }
-      if (buffer.links.length > 0) {
-        await adapter.getRepo(ItemType.LINKS)?.push(buffer.links);
-        adapter.state.links.total += buffer.links.length;
-      }
+      const flush = async () => {
+        for (const type of [ItemType.TASKS, ItemType.SUBTASKS, ItemType.COMMENTS, ItemType.ATTACHMENTS, ItemType.LINKS] as const) {
+          const items = buffer[type];
+          if (items.length) {
+            await adapter.getRepo(type)?.push(items);
+            adapter.state[type].total += items.length;
+            buffer[type] = [];
+          }
+        }
+      };
+      const completed = await extractTaskWithSubtasks(projectTasks[i], asanaClient, asanaClient.projectId, buffer, adapter,
+        0, extractFrom, extractTo, { frames: adapter.state.tasks.traversal ??= [], flush });
+      if (!completed) return;
+      delete adapter.state.tasks.traversal;
 
       adapter.state.tasks.lastExtractedTaskIndex = i;
 

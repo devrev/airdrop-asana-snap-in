@@ -13,6 +13,7 @@
     "build": "rimraf ./dist && tsc && tsc-alias",
     "package": "npm run build && tar -cvzf build.tar.gz dist package.json package-lock.json .npmrc",
     "test": "jest",
+    "test:unit": "jest --config jest.unit.config.js",
     "test:server": "AIRSYNC_LOCAL_DEVELOPMENT=1 nodemon --watch src --watch test test/main.ts",
     "api-gen": "npx @openapitools/openapi-generator-cli generate -i https://raw.githubusercontent.com/Asana/openapi/refs/heads/master/defs/asana_oas.yaml -g typescript-axios -o src/asana/api-client/generated --skip-validate-spec",
     "generate-mock-data": "ts-node scripts/generate-mock-data/index.ts",
@@ -55,13 +56,14 @@
     "yargs": "^17.6.2"
   },
   "dependencies": {
-    "@devrev/airsync-sdk": "2.0.0",
+    "@devrev/airsync-sdk": "2.0.1",
     "axios": "1.20.0",
     "axios-retry": "4.5.0",
     "form-data": "4.0.6",
     "protobufjs": "7.6.6"
   },
   "overrides": {
+    "follow-redirects": "1.16.2",
     "shell-quote": "^1.11.0",
     "get-uri": {
       "basic-ftp": "^6.2.1"

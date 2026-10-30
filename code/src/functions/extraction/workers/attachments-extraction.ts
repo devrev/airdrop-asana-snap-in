@@ -6,6 +6,7 @@ import {
 import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
+import { ProjectAccessGuard } from '@utils/asana-errors';
 import { handleExtractionError } from '@utils/data-helpers';
 
 import type { ExtractorState } from '../index';
@@ -39,7 +40,7 @@ async function stream({
     return { status: 'success', httpStream };
   } catch (error) {
     const { delay, error: extractionError } = handleExtractionError(error);
-    if (delay) {
+    if (delay !== undefined) {
       console.warn(`Rate limited while streaming attachment ${item.id}. Delaying for ${delay}s.`);
       return { status: 'delay', delaySeconds: delay };
     } else {
@@ -50,8 +51,7 @@ async function stream({
 }
 
 processExtractionTask<ExtractorState>({
-  task: async ({ adapter }) => adapter.streamAttachments({
-    stream,
-    batchSize: ATTACHMENT_BATCH_SIZE,
-  }),
+  task: async ({ adapter }) => new ProjectAccessGuard(new AsanaClient(adapter.event)).run(
+    () => adapter.streamAttachments({ stream, batchSize: ATTACHMENT_BATCH_SIZE })
+  ),
 });

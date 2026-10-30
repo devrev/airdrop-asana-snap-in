@@ -9,10 +9,11 @@ import {
 } from '@utils/metadata-helpers';
 
 jest.mock('@devrev/airsync-sdk', () => ({
+  ...jest.requireActual('@devrev/airsync-sdk'),
   processExtractionTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
-jest.mock('@asana/external_domain_metadata.json', () => ({ record_types: [] }), { virtual: true });
+jest.mock('@asana/external_domain_metadata.json', () => ({ record_types: { tasks: { fields: {} } } }), { virtual: true });
 jest.mock('@utils/metadata-helpers');
 
 const mockProcessTask = processExtractionTask as jest.Mock;
@@ -29,6 +30,7 @@ const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 function createMockAdapter() {
   const mockPush = jest.fn();
   return {
+    state: {},
     event: {
       payload: {
         connection_data: { key: 'test-key', org_id: 'workspace-123' },
@@ -44,7 +46,7 @@ function createMockAdapter() {
 describe('metadata-extraction worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (AsanaClient as unknown as jest.Mock).mockImplementation(() => ({}));
+    (AsanaClient as unknown as jest.Mock).mockImplementation(() => ({ getProject: jest.fn().mockResolvedValue({}) }));
     mockEnrichCustomFields.mockResolvedValue(undefined);
     mockEnrichSections.mockResolvedValue(undefined);
     mockEnrichSubtaskStages.mockReturnValue(undefined);

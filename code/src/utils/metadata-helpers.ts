@@ -9,16 +9,14 @@ import type {
 import { AsanaClient } from '@asana/api-client';
 import { CustomFieldType, StageState } from '@asana/constants';
 import type { AsanaCustomField, AsanaSection } from '@asana/types';
-import { type ExtractListResponse, handleExtractionError } from '@utils/data-helpers';
+import { describeAsanaError } from '@utils/asana-errors';
+import { type ExtractListResponse } from '@utils/data-helpers';
 import { serializeError } from '@utils/serialize-error';
 
-function describeMetadataError(action: string, error: unknown): ExtractListResponse {
-  const { delay } = handleExtractionError(error);
-  if (delay) {
-    return { delay };
-  }
-
-  return { error: { message: `Error ${action}: ${serializeError(error)}` } };
+export function describeMetadataError(action: string, error: unknown): ExtractListResponse {
+  const result = describeAsanaError(error, 'request');
+  if (result.status === 'delay') return { delay: result.delaySeconds };
+  return { error: { ...result.error, message: `Error ${action}: ${serializeError(error)}` } };
 }
 
 function mapAsanaTypeToMetadataType(asanaType: string): FieldType {
@@ -35,7 +33,8 @@ function mapAsanaTypeToMetadataType(asanaType: string): FieldType {
 
 /** Build a DevRev field definition from an Asana custom field. */
 export function buildCustomFieldDefinition(customField: AsanaCustomField): Field {
-  const fieldType = mapAsanaTypeToMetadataType(customField.type || 'text');
+  const isFormulaField = customField.representation_type === 'formula' || customField.is_formula_field === true;
+  const fieldType = isFormulaField ? 'text' : mapAsanaTypeToMetadataType(customField.type || 'text');
 
   const fieldDef: Field = {
     name: customField.name || `Custom Field ${customField.gid}`,
@@ -43,12 +42,15 @@ export function buildCustomFieldDefinition(customField: AsanaCustomField): Field
     type: fieldType,
   };
 
+  if (isFormulaField) {
+    fieldDef.is_read_only = true;
+  }
+
   if (customField.type === CustomFieldType.ENUM || customField.type === CustomFieldType.MULTI_ENUM) {
     const enumOptions = customField.enum_options ?? [];
     fieldDef.enum = {
       values: enumOptions
-        .filter((opt) => opt.enabled !== false)
-        .map((opt) => ({ key: opt.gid!, name: opt.name })),
+        .map((opt) => ({ key: opt.gid!, name: opt.name, is_deprecated: opt.enabled === false })),
     };
 
     if (customField.type === CustomFieldType.MULTI_ENUM) {

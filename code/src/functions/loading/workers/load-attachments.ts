@@ -2,6 +2,7 @@ import type { ExternalSystemAttachment, ExternalSystemItemLoadingParams, Externa
 import { processLoadingTask } from '@devrev/airsync-sdk';
 
 import { AsanaClient } from '@asana/api-client';
+import { ProjectAccessGuard } from '@utils/asana-errors';
 import { handleLoadingError, resolveExternalId } from '@utils/loading-helpers';
 import { serializeError } from '@utils/serialize-error';
 
@@ -92,5 +93,8 @@ async function createAttachment({
 }
 
 processLoadingTask<LoaderState>({
-  task: async ({ adapter }) => adapter.loadAttachments({ create: createAttachment }),
+  task: async ({ adapter }) => {
+    const guard = new ProjectAccessGuard(new AsanaClient(adapter.event));
+    return guard.run(() => adapter.loadAttachments({ create: guard.protectLoading(createAttachment) }), { deferPreflight: true });
+  },
 });

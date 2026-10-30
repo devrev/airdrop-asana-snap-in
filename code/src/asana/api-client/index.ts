@@ -22,7 +22,6 @@ import {
   GetAsanaProjectResponse,
   GetAsanaProjectsRequest,
   GetAsanaProjectsResponse,
-  GetAsanaProjectTaskCountResponse,
   GetAsanaSectionsRequest,
   GetAsanaSectionsResponse,
   GetAsanaStoriesRequest,
@@ -95,6 +94,8 @@ const TASK_FIELDS = [
   'custom_fields.name',
   'custom_fields.display_value',
   'custom_fields.type',
+  'custom_fields.representation_type',
+  'custom_fields.is_formula_field',
   'custom_fields.enum_value',
   'custom_fields.enum_value.name',
   'custom_fields.enum_value.color',
@@ -126,6 +127,8 @@ const TAGS_FIELDS = ['name', 'color', 'created_at', 'notes'].join(',');
 const CUSTOM_FIELD_SETTINGS_FIELDS = [
   'custom_field.name',
   'custom_field.type',
+  'custom_field.representation_type',
+  'custom_field.is_formula_field',
   'custom_field.resource_subtype',
   'custom_field.description',
   'custom_field.enum_options',
@@ -197,8 +200,9 @@ export class AsanaClient {
 
   /** Fetch paginated tasks for the configured project. */
   async getTasks(params: GetAsanaTasksRequest): Promise<AxiosResponse<GetAsanaTasksResponse>> {
-    return this.httpClient.get(`/projects/${this.projectId}/tasks`, {
+    return this.httpClient.get(params.modified_since ? '/tasks' : `/projects/${this.projectId}/tasks`, {
       params: {
+        ...(params.modified_since && { project: this.projectId }),
         limit: ASANA_PAGE_LIMIT,
         opt_fields: TASK_FIELDS,
         ...params,
@@ -223,13 +227,6 @@ export class AsanaClient {
   /** Fetch paginated projects for the configured workspace. */
   async getProjects(params: GetAsanaProjectsRequest): Promise<AxiosResponse<GetAsanaProjectsResponse>> {
     return this.httpClient.get(`/workspaces/${this.workspaceId}/projects`, { params });
-  }
-
-  /** Get the total task count for a project. */
-  async getProjectTaskCount(projectId: string): Promise<AxiosResponse<GetAsanaProjectTaskCountResponse>> {
-    return this.httpClient.get(`/projects/${projectId}/task_counts`, {
-      params: { opt_fields: 'num_tasks' },
-    });
   }
 
   /** Fetch paginated memberships for the configured project. */

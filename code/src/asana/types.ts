@@ -11,7 +11,6 @@ import {
   CustomFieldResponse,
   CustomFieldSettingResponse,
   EnumOption,
-  GetTaskCountsForProject200Response,
   MembershipCompact,
   NextPage,
   ProjectMembershipCompact,
@@ -68,7 +67,7 @@ export interface PaginatedRequestWithLimit extends PaginatedRequest {
   limit?: number;
 }
 
-export type GetAsanaTasksRequest = PaginatedRequestWithLimit;
+export type GetAsanaTasksRequest = PaginatedRequestWithLimit & { modified_since?: string };
 export type GetAsanaSubtasksRequest = PaginatedRequestWithLimit;
 export type GetAsanaProjectsRequest = PaginatedRequestWithLimit;
 export type GetAsanaTagsRequest = PaginatedRequestWithLimit;
@@ -80,7 +79,6 @@ export type GetAsanaMembershipsRequest = PaginatedRequest;
 export type GetAsanaTasksResponse = ListResponse<AsanaTask>;
 export type GetAsanaSubtasksResponse = ListResponse<AsanaTask>;
 export type GetAsanaProjectsResponse = ListResponse<AsanaProject>;
-export type GetAsanaProjectTaskCountResponse = GetTaskCountsForProject200Response;
 export type AsanaMembership = MembershipCompact;
 export type GetAsanaMembershipsResponse = ListResponse<AsanaMembership>;
 export type GetAsanaUserResponse = { data: AsanaUser };
