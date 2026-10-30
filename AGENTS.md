@@ -16,9 +16,9 @@ Runs as a **snap-in** (plug-in) on AWS Lambda using the `@devrev/airsync-sdk` SD
 - **External Sync Unit (ESU)**: An Asana project — the boundary of a single sync operation.
 - **Sync run**: One end-to-end extract-transform-load execution of a sync unit, comprised of sequential phases.
 - **Initial sync**: The first sync run, triggered manually by the user. Extracts all data from the selected Asana project. Includes the ESU extraction phase.
-- **Incremental (1-way) sync**: Any sync after the initial. Only extracts data created or updated within the time window defined by the platform's `extract_from` and `extract_to` event parameters, using client-side record filtering while traversing every root and supported subtask branch. Asana does not propagate descendant changes to ancestor timestamps. When subtasks are excluded, root listing retains the `modified_since` lower-bound optimization.
+- **Incremental (1-way) sync**: Any sync after the initial. Only extracts data created or updated within the time window defined by the platform's `extract_from` and `extract_to` event parameters, using Asana's `modified_since` API parameter (lower bound) and client-side filtering (upper bound).
 - **2-way sync**: A reverse sync run from DevRev back to the external system (loading phases).
-- **Time-scoped sync**: Extraction within a custom time window, configured via `extract_from` and `extract_to` event parameters. The platform resolves these from `extraction_start_time` and `extraction_end_time`. Task and subtask records are filtered client-side on both bounds while their descendants are traversed independently. Root listing uses `modified_since` only when subtasks are excluded. Comments and attachments are filtered client-side on both bounds.
+- **Time-scoped sync**: Extraction within a custom time window, configured via `extract_from` and `extract_to` event parameters. The platform resolves these from `extraction_start_time` and `extraction_end_time`. Tasks use Asana's `modified_since` API parameter for the lower bound; the upper bound is applied client-side. Subtasks, comments, and attachments are filtered client-side on both bounds.
 - **Domain mapping**: Field-level mapping between Asana and DevRev entities, defined in `initial_domain_mapping.json`. Installed with the snap-in and configurable by end users during import.
 - **External domain metadata**: A JSON schema (`external_domain_metadata.json`) describing the external system's domain model — record types, fields, enums, references, stage diagrams, and more.
 
@@ -167,7 +167,7 @@ airsync-asana-snap-in/
 | `code/src/utils/attachment-helpers.ts` | Attachment text parsing: `extractInlineAttachmentGids`, `extractAttachmentGidFromCommentText`, `stripAssetUrlsFromText`, `extractAttachmentsFromTask` |
 | `code/src/utils/permissions-helpers.ts` | `extractPermissions` — fetches project memberships and produces access rule records per access level |
 | `code/src/utils/metadata-helpers.ts` | Metadata enrichment: custom field type mapping, section fetching, stage diagram building |
-| `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction without optional task counts |
+| `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction with task counts |
 | `code/src/utils/rich-text-helpers.ts` | Bidirectional rich text conversion: `parseAsanaRichText` (Asana HTML → AirSync rich text for extraction), `serializeToAsanaHtml` and `serializeToPlainText` (AirSync rich text → Asana HTML/plain text for loading) |
 | `code/src/utils/loading-helpers.ts` | `handleLoadingError` (429 → delay status, others → error record), `resolveExternalId` (DevRev ID → Asana GID via mappers) |
 | `code/src/asana/constants.ts` | Item type enums (incl. `GROUPS`, `GROUP_MEMBERSHIPS`, `ACCESS_RULES`), link type constants, access level constants, `MAX_SUBTASK_DEPTH = 2` |
@@ -179,7 +179,6 @@ State persists across Lambda invocations via the SDK. The connector defines `Ext
 
 ```typescript
 interface ExtractorState {
-  taskFieldIds?: string[];
   users:             { completed: boolean; offset: string; total: number };
   tasks:             { completed: boolean; offset: string; total: number; lastExtractedTaskIndex: number };
   tags:              { completed: boolean; offset: string; total: number };
@@ -187,7 +186,7 @@ interface ExtractorState {
   comments:          { completed: boolean; total: number };
   attachments:       { completed: boolean; total: number };
   links:             { completed: boolean; total: number };
-  groups:            { completed: boolean; offset: string; total: number; lastExtractedTeamIndex?: number };
+  groups:            { completed: boolean; offset: string; total: number };
   group_memberships: { completed: boolean; total: number };
   access_rules:      { completed: boolean; total: number };
 }
@@ -200,8 +199,6 @@ interface ExtractorState {
 
 The SDK persists connector state automatically when it sends the task response; SDK bookkeeping is stored separately. Upgrade between runs after v1 workers finish. Once v2 persists state, rollback requires a verified saved v1 state with the v1 connector, or explicit reset/reinitialization and reimport; draining alone does not restore v1 compatibility. On the next invocation, state is restored so extraction can resume. The `prepareStateForExtraction` function in `data-helpers.ts` resets entity progress for incremental syncs. Time-scoped extraction bounds (`extract_from` and `extract_to`) are read directly from `adapter.event.payload.event_context` — they are not stored in state.
 
-The data worker resets incremental progress before checking project access. A project-check 429 must persist the new run's reset state, so its continuation extracts data instead of retaining the preceding run's completion flags. Continuations preserve their current cursor and totals. The HTTP SDK regression covers the delay and restoration of the actual persisted state.
-
 ## Asana API and Error Handling
 
 - **Base URL**: `https://app.asana.com/api/1.0`
@@ -211,15 +208,6 @@ The data worker resets incremental progress before checking project access. A pr
 - **Pagination**: All list endpoints use offset-based pagination with page size 100
 - **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker returns `{ status: 'delay', delaySeconds }` so the SDK sends the phase delay event and the platform reschedules; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
 - **Retries**: The HTTP client retries up to 3 times for network errors and 5xx responses, with exponential backoff (2s, 4s, 8s). 4xx errors, including 429, are not retried.
-
-
-### Common errors and periodic syncs
-
-`code/src/utils/asana-errors.ts` provides `describeAsanaError` and `ProjectAccessGuard`. Metadata/data/attachment extraction and both loading phases check the selected project before work, including continuation invocations. A project HTTP 404 returns `EXTERNAL_SYNC_UNIT_DELETED`; HTTP 401 returns `EXTERNAL_SYSTEM_NO_ACCESS`; required API HTTP 402/403 returns `EXTERNAL_SYSTEM_NO_PERMISSION`. Workspace project-listing HTTP 404 returns `EXTERNAL_SYSTEM_NO_ACCESS`. Set `ErrorRecord.code`; the SDK emits exactly `ERROR_CODE=<code>` and logs descriptive details separately. Snap-in manager maps these to `common / 1`, `common / 4`, or `common / 5`; activity manager switches the affected sync unit to manual immediately.
-
-Uncoded phase failures recheck project access before escalating. Metadata endpoint 404s and individual task/comment/attachment failures do not imply project deletion while the project remains accessible. Reverse-loading callbacks recheck project access on an item failure; a confirmed common error aborts loading before advancing the item cursor, and the phase guard preserves the common code across the SDK's catch/report handling. Item-specific errors otherwise retain the SDK's failed-item behavior. No DevRev artifact, mapper or download error is directly classified as an Asana authorization failure.
-
-HTTP 429 remains a delay; all phases use parsed nonnegative integer Retry-After seconds or UTC HTTP dates, including zero, and default invalid/missing values to 60 seconds. Network errors, timeouts, 5xx responses, malformed requests and conflicts remain uncoded; normal HTTP retries still apply. An archived but accessible project is not treated as deleted or deactivated. Invalid credentials do not establish user deletion, so the connector does not emit `USER_DELETED`. The guard adds one project read per phase and additional reads when diagnosing failures. Attachment access lost after the phase's initial check may still be handled as an item failure by the SDK; the next phase or invocation checks project access again.
 
 ## Development Workflow
 
@@ -246,7 +234,7 @@ All commands run from the `code/` directory unless otherwise noted.
 
 ### Dependency security
 
-Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases, including qs 6.16.2 for SNYK-JS-QS-21755395. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
+Run `snyk test --dev` for the complete dependency tree and `snyk test` for production dependencies. The lockfile pins patched Handlebars and qs releases. A scoped `get-uri` override selects `basic-ftp` 6.2.1+ to fix its FTP response parsing ReDoS; FTP download and cache compatibility were verified against a local server. Keep the override until `get-uri` accepts a patched release itself.
 
 ### Path Aliases
 
@@ -260,7 +248,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 ## Testing
 
-- **Tests**: 22 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments), plus common-error classification and project-access guards.
+- **Tests**: 21 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
 - **Coverage reporting**: Jest uses V8 coverage to produce valid source paths with `ts-jest`. `.github/workflows/ci.yml` uploads `code/coverage/lcov.info` to Coveralls on pull requests and pushes to `main`, using `GITHUB_TOKEN` and `code` as the source base path. Enable `devrev/airsync-asana-snap-in` in the Coveralls GitHub integration before expecting reports and PR checks. The README badge displays coverage for `main`.
 - **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.
@@ -312,7 +300,7 @@ All subpages (each has a "Copy Markdown" button for easy reference):
 **Extraction (forward sync):**
 
 - `/extraction-phases` — Extraction lifecycle overview, `processExtractionTask`/`spawn` usage, state management across invocations, four phases (ESU, metadata, data, attachments).
-- `/external-sync-units-extraction` — ESU phase: listing sync units with id/name/description, event types (`START_EXTRACTING_EXTERNAL_SYNC_UNITS`, `EXTERNAL_SYNC_UNIT_EXTRACTION_DONE`, `EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR`), initial sync only.
+- `/external-sync-units-extraction` — ESU phase: listing sync units with id/name/description/item_count, event types (`START_EXTRACTING_EXTERNAL_SYNC_UNITS`, `EXTERNAL_SYNC_UNIT_EXTRACTION_DONE`, `EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR`), initial sync only.
 - `/metadata-extraction` — `external_domain_metadata.json` schema: record types, categories, fields (text/enum/reference/rich_text/timestamp/etc.), collections, stage diagrams, custom link types, field attributes (`is_read_only`/`is_required`/etc.), validation with chef-cli, `infer-metadata` command.
 - `/initial-domain-mapping` — Field mapping between external and DevRev schemas via Chef UI or MCP; category-based defaults, multiple mapping options, blueprint apply/merge workflow, custom object mapping.
 - `/data-extraction` — Data extraction phase: event types (`START_EXTRACTING_DATA`, `CONTINUE_EXTRACTING_DATA`, `DATA_EXTRACTION_PROGRESS`, `DATA_EXTRACTION_DELAYED`, `DATA_EXTRACTION_DONE`, `DATA_EXTRACTION_ERROR`), repos and `push()`, normalization rules (timestamps, nulls, references, multiselect), state handling, Lambda timeout (soft 10min / hard 13min), time-scoped syncs with `extract_from` and `extract_to`, special error events (`USER_DELETED`/`EXTERNAL_SYNC_UNIT_DEACTIVATED`/`DELETED`).
@@ -336,32 +324,3 @@ All subpages (each has a "Copy Markdown" button for easy reference):
 - `/supported-object-types` — DevRev object types available for mapping (issues, tickets, conversations, articles, custom objects, etc.) and their supported fields.
 - `/data-model/rich-text-fields` — Rich text format: markdown arrays with mention objects (`ref_type`, `id`, `fallback_record_name`), article importing with inline attachments (artifact references) and article cross-links.
 - `/data-model/mapping-reasons` — Transformation methods reference: `use_directly`, `make_custom_stages`, `map_enum`, `use_rich_text`, `use_fixed_value`, `use_raw_jq`, `make_constrained_simple_value`, `reference_custom_field`, `construct_text_field`, etc.; reasons why certain mappings may be unavailable (type mismatches, struct limitations, link restrictions).
-
-## Production resilience
-
-The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` maps all discovered projects to descriptors synchronously without making task-count API requests or including the optional `item_count` field. The unused task-count API wrapper and response alias have been removed.
-
-`ExtractorState.groups.lastExtractedTeamIndex` is an optional cursor within a team page. Completed teams are not replayed after a delay or timeout; page advancement and expired-offset recovery reset the cursor. The current team's memberships are fetched before either record is emitted. A retry within a single team's membership pagination still starts that team again.
-
-Successful metadata extraction persists `ExtractorState.taskFieldIds`. `extractTaskWithSubtasks` buffers copies with only those custom fields and, for root tasks, only the selected project's memberships. Older saved state without field IDs retains its prior custom-field behavior until metadata next runs. Disabled enum options remain declared because historical tasks can still contain them. Attachment-only comments use their attachment names (or `Attachment`) when HTML and text provide no body.
-
-`filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and parses nonnegative integer delays or UTC HTTP dates for 429. Item 404 and transient service failures remain uncoded.
-
-`code/src/utils/production-regressions.test.ts` covers project retention without task counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.
-
-
-### Consolidated normalization and retry coverage
-
-Formula custom fields request `representation_type` and `is_formula_field`, use read-only text metadata, and normalize the computed `display_value`. Explicit empty text values are preserved.
-
-`code/src/utils/retry-after.ts` parses nonnegative integer seconds, including zero, and UTC HTTP dates. Missing/invalid values use 60 seconds; valid digit sequences above the safe integer range return an uncoded error instead of retrying early. Shared Asana error classification, loading errors and every extraction delay consumer preserve this behavior and existing common access/deletion codes.
-
-`npm run test:unit -- --runInBand` selects direct connector-function scenarios using `code/jest.unit.config.js`. The full Jest suite retains its existing coverage gate. Scenario coverage is listed in `docs/unit-test-coverage.md`; the added scenario suites include normalization, reverse mapping, metadata/permissions and control flow.
-
-Dependency security also pins follow-redirects 1.16.2 (SNYK-JS-FOLLOWREDIRECTS-21762031); qs 6.16.2 addresses SNYK-JS-QS-21755395. These dependency fixes require a fresh Snyk scan; installing patched versions alone is not scanner clearance.
-
-### Incremental descendant traversal
-
-`taskIsWithinWindow` in `data-helpers.ts` filters each task/subtask record and its outgoing dependency or incoming parent link independently of traversal. `extractTasks` lists every root when subtasks are selected; `extractTaskWithSubtasks` traverses unchanged and out-of-window ancestors up to the existing maximum depth. Missing timestamps are included conservatively. Buffer flushing, page offsets and root completion cursors are unchanged. Comments and attachments retain their own timestamp filters, including stories on unchanged ancestors; there is no source guarantee that independently changed child content advances every ancestor timestamp. This correctness tradeoff increases root-page, subtask-page and story requests for incremental runs; it does not fetch unchanged attachment bytes or perform mapper lookups for attachments outside the window. Do not reintroduce ancestor timestamp pruning without a source change feed or equivalent completeness guarantee.
-
-`code/src/utils/nested-incremental.test.ts` covers unchanged ancestors, missing timestamps, nochange output, upper bounds, root/subtask pagination and the scope-specific listing optimization. `sdk-migration.integration.test.ts` additionally restores real SDK state after a deep-branch HTTP 429 and verifies that a completed preceding root is not replayed.
