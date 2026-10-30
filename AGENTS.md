@@ -167,7 +167,7 @@ airsync-asana-snap-in/
 | `code/src/utils/attachment-helpers.ts` | Attachment text parsing: `extractInlineAttachmentGids`, `extractAttachmentGidFromCommentText`, `stripAssetUrlsFromText`, `extractAttachmentsFromTask` |
 | `code/src/utils/permissions-helpers.ts` | `extractPermissions` — fetches project memberships and produces access rule records per access level |
 | `code/src/utils/metadata-helpers.ts` | Metadata enrichment: custom field type mapping, section fetching, stage diagram building |
-| `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction with task counts |
+| `code/src/utils/external-sync-units-helpers.ts` | Project listing and ESU construction without optional task counts |
 | `code/src/utils/rich-text-helpers.ts` | Bidirectional rich text conversion: `parseAsanaRichText` (Asana HTML → AirSync rich text for extraction), `serializeToAsanaHtml` and `serializeToPlainText` (AirSync rich text → Asana HTML/plain text for loading) |
 | `code/src/utils/loading-helpers.ts` | `handleLoadingError` (429 → delay status, others → error record), `resolveExternalId` (DevRev ID → Asana GID via mappers) |
 | `code/src/asana/constants.ts` | Item type enums (incl. `GROUPS`, `GROUP_MEMBERSHIPS`, `ACCESS_RULES`), link type constants, access level constants, `MAX_SUBTASK_DEPTH = 2` |
@@ -310,7 +310,7 @@ All subpages (each has a "Copy Markdown" button for easy reference):
 **Extraction (forward sync):**
 
 - `/extraction-phases` — Extraction lifecycle overview, `processExtractionTask`/`spawn` usage, state management across invocations, four phases (ESU, metadata, data, attachments).
-- `/external-sync-units-extraction` — ESU phase: listing sync units with id/name/description/item_count, event types (`START_EXTRACTING_EXTERNAL_SYNC_UNITS`, `EXTERNAL_SYNC_UNIT_EXTRACTION_DONE`, `EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR`), initial sync only.
+- `/external-sync-units-extraction` — ESU phase: listing sync units with id/name/description, event types (`START_EXTRACTING_EXTERNAL_SYNC_UNITS`, `EXTERNAL_SYNC_UNIT_EXTRACTION_DONE`, `EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR`), initial sync only.
 - `/metadata-extraction` — `external_domain_metadata.json` schema: record types, categories, fields (text/enum/reference/rich_text/timestamp/etc.), collections, stage diagrams, custom link types, field attributes (`is_read_only`/`is_required`/etc.), validation with chef-cli, `infer-metadata` command.
 - `/initial-domain-mapping` — Field mapping between external and DevRev schemas via Chef UI or MCP; category-based defaults, multiple mapping options, blueprint apply/merge workflow, custom object mapping.
 - `/data-extraction` — Data extraction phase: event types (`START_EXTRACTING_DATA`, `CONTINUE_EXTRACTING_DATA`, `DATA_EXTRACTION_PROGRESS`, `DATA_EXTRACTION_DELAYED`, `DATA_EXTRACTION_DONE`, `DATA_EXTRACTION_ERROR`), repos and `push()`, normalization rules (timestamps, nulls, references, multiselect), state handling, Lambda timeout (soft 10min / hard 13min), time-scoped syncs with `extract_from` and `extract_to`, special error events (`USER_DELETED`/`EXTERNAL_SYNC_UNIT_DEACTIVATED`/`DELETED`).
@@ -337,7 +337,7 @@ All subpages (each has a "Copy Markdown" button for easy reference):
 
 ## Production resilience
 
-The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` stops optional task-count requests after a 429 in the current ten-project batch, logs once, and returns all project descriptors with the existing zero-count fallback for unavailable counts.
+The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` maps all discovered projects to descriptors synchronously without making task-count API requests or including the optional `item_count` field. The unused task-count API wrapper and response alias have been removed.
 
 `ExtractorState.groups.lastExtractedTeamIndex` is an optional cursor within a team page. Completed teams are not replayed after a delay or timeout; page advancement and expired-offset recovery reset the cursor. The current team's memberships are fetched before either record is emitted. A retry within a single team's membership pagination still starts that team again.
 
@@ -345,4 +345,4 @@ Successful metadata extraction persists `ExtractorState.taskFieldIds`. `extractT
 
 `filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and validates positive finite whole-second delays for 429. Item 404 and transient service failures remain uncoded.
 
-`code/src/utils/production-regressions.test.ts` covers task-count request bounds, partial successful counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.
+`code/src/utils/production-regressions.test.ts` covers project retention without task counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.

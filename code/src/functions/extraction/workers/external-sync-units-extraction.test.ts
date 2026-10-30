@@ -57,9 +57,9 @@ describe('external-sync-units-extraction worker', () => {
   describe('task', () => {
     it('should fetch projects, build ESUs, and return success', async () => {
       const mockProjects = [{ gid: '1', name: 'Project 1' }];
-      const mockESUs = [{ id: '1', name: 'Project 1', item_count: 10 }];
+      const mockESUs = [{ id: '1', name: 'Project 1' }];
       mockFetchAllProjects.mockResolvedValue(mockProjects);
-      mockBuildExternalSyncUnits.mockResolvedValue(mockESUs);
+      mockBuildExternalSyncUnits.mockReturnValue(mockESUs);
 
       const adapter = createMockAdapter();
       const taskResult = await taskFn({ adapter });
@@ -67,7 +67,7 @@ describe('external-sync-units-extraction worker', () => {
       expect(AsanaClient).toHaveBeenCalledWith(adapter.event);
       expect(mockCheckUserWorkspaceRole).toHaveBeenCalled();
       expect(mockFetchAllProjects).toHaveBeenCalled();
-      expect(mockBuildExternalSyncUnits).toHaveBeenCalledWith(mockProjects, expect.anything());
+      expect(mockBuildExternalSyncUnits).toHaveBeenCalledWith(mockProjects);
       expect(adapter.getRepo).toHaveBeenCalledWith('external_sync_units');
       expect(adapter._mockPush).toHaveBeenCalledWith(mockESUs);
       expect(taskResult).toEqual({ status: 'success' });
@@ -82,7 +82,7 @@ describe('external-sync-units-extraction worker', () => {
         callOrder.push('fetchProjects');
         return [];
       });
-      mockBuildExternalSyncUnits.mockResolvedValue([]);
+      mockBuildExternalSyncUnits.mockReturnValue([]);
 
       await taskFn({ adapter: createMockAdapter() });
 

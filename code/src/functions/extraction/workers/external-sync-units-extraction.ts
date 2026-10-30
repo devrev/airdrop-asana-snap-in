@@ -29,7 +29,7 @@ processExtractionTask<ExtractorState>({
     }
     console.log(`Fetched ${asanaProjects.length} projects from Asana workspace. Building sync units...`);
 
-    const externalSyncUnits = await buildExternalSyncUnits(asanaProjects, asanaClient);
+    const externalSyncUnits = buildExternalSyncUnits(asanaProjects);
     console.log(`External sync unit extraction complete. ${externalSyncUnits.length} projects available for sync.`);
 
     await adapter.getRepo(AirSyncDefaultItemTypes.EXTERNAL_SYNC_UNITS)?.push(externalSyncUnits);

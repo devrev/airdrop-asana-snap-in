@@ -22,7 +22,6 @@ import {
   GetAsanaProjectResponse,
   GetAsanaProjectsRequest,
   GetAsanaProjectsResponse,
-  GetAsanaProjectTaskCountResponse,
   GetAsanaSectionsRequest,
   GetAsanaSectionsResponse,
   GetAsanaStoriesRequest,
@@ -223,13 +222,6 @@ export class AsanaClient {
   /** Fetch paginated projects for the configured workspace. */
   async getProjects(params: GetAsanaProjectsRequest): Promise<AxiosResponse<GetAsanaProjectsResponse>> {
     return this.httpClient.get(`/workspaces/${this.workspaceId}/projects`, { params });
-  }
-
-  /** Get the total task count for a project. */
-  async getProjectTaskCount(projectId: string): Promise<AxiosResponse<GetAsanaProjectTaskCountResponse>> {
-    return this.httpClient.get(`/projects/${projectId}/task_counts`, {
-      params: { opt_fields: 'num_tasks' },
-    });
   }
 
   /** Fetch paginated memberships for the configured project. */

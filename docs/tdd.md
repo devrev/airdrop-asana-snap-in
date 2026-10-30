@@ -199,7 +199,6 @@ Base URL: `https://app.asana.com/api/1.0`
 | Object         | Method | Endpoint                                  | Purpose                                              |
 | :------------- | :----- | :---------------------------------------- | :--------------------------------------------------- |
 | Projects (ESU) | GET    | `/workspaces/{workspaceId}/projects`      | List projects for sync unit selection                |
-| Task Count     | GET    | `/projects/{projectId}/task_counts`       | Get task count for progress reporting                |
 | Tasks          | GET    | `/projects/{projectId}/tasks`             | List tasks with all fields (opt_fields)              |
 | Subtasks       | GET    | `/tasks/{taskGid}/subtasks`               | List subtasks for a task (recursive, up to 2 levels) |
 | Users          | GET    | `/users?workspace={workspaceId}`          | List users in workspace                              |
@@ -430,7 +429,7 @@ Common-error regressions cover real worker callbacks for project 401/402/403/404
 
 ## Production resilience
 
-The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` stops optional task-count requests after a 429 in the current ten-project batch, logs once, and returns all project descriptors with the existing zero-count fallback for unavailable counts.
+The connector pins stable `@devrev/airsync-sdk` 2.0.1. `buildExternalSyncUnits` maps all discovered projects to descriptors synchronously without making task-count API requests or including the optional `item_count` field. The unused task-count API wrapper and response alias have been removed.
 
 `ExtractorState.groups.lastExtractedTeamIndex` is an optional cursor within a team page. Completed teams are not replayed after a delay or timeout; page advancement and expired-offset recovery reset the cursor. The current team's memberships are fetched before either record is emitted. A retry within a single team's membership pagination still starts that team again.
 
@@ -438,4 +437,4 @@ Successful metadata extraction persists `ExtractorState.taskFieldIds`. `extractT
 
 `filterAlreadyMappedAttachments` propagates mapper lookup failures so uncertain deduplication cannot create duplicate artifacts; SDK 404/null responses still mean an unmapped attachment. `handleExtractionError` uses shared common codes for required API 401/402/403 and validates positive finite whole-second delays for 429. Item 404 and transient service failures remain uncoded.
 
-`code/src/utils/production-regressions.test.ts` covers task-count request bounds, partial successful counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.
+`code/src/utils/production-regressions.test.ts` covers project retention without task counts, team retry/timeout/expired-offset resume, mapper failures, common errors, Retry-After validation, project-scoped fields/sections, historical enum values, and attachment-only comment bodies. The HTTP worker integration suite also verifies team resume after a real 429 callback, metadata field-state persistence, and common errors from required user extraction.

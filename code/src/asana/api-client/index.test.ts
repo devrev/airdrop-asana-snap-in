@@ -113,18 +113,6 @@ describe('AsanaClient', () => {
     });
   });
 
-  describe('getProjectTaskCount', () => {
-    it('should call correct URL with projectId and num_tasks field', async () => {
-      const client = createClient();
-
-      await client.getProjectTaskCount('proj-abc');
-
-      expect(mockGet).toHaveBeenCalledWith('/projects/proj-abc/task_counts', {
-        params: { opt_fields: 'num_tasks' },
-      });
-    });
-  });
-
   describe('getMembershipsForProject', () => {
     it('should call /memberships with project as parent', async () => {
       const client = createClient();

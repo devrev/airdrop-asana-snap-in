@@ -1,5 +1,4 @@
 import { ExternalSyncUnit } from '@devrev/airsync-sdk';
-import axios from 'axios';
 
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
@@ -60,46 +59,11 @@ export async function fetchAllProjects(asanaClient: AsanaClient): Promise<AsanaP
   return projects;
 }
 
-const BATCH_SIZE = 10;
-
-/** Build external sync unit descriptors from Asana projects, including task counts. */
-export async function buildExternalSyncUnits(
-  projects: AsanaProject[],
-  asanaClient: AsanaClient
-): Promise<ExternalSyncUnit[]> {
-  const results: ExternalSyncUnit[] = [];
-  let rateLimited = false;
-
-  for (let i = 0; i < projects.length; i += BATCH_SIZE) {
-    const batch = projects.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(async (project) => {
-        let itemCount = 0;
-        if (!rateLimited) {
-          try {
-            const responseProject = await asanaClient.getProjectTaskCount(project.gid!);
-            itemCount = responseProject?.data?.data?.num_tasks ?? 0;
-          } catch (error) {
-            if (axios.isAxiosError(error) && error.response?.status === 429) {
-              if (!rateLimited) console.warn('Asana task counts are rate limited. Skipping remaining optional task counts.');
-              rateLimited = true;
-            } else {
-              console.warn(`Error fetching project task count for project ${project.gid}: ${serializeError(error)}`);
-            }
-          }
-        }
-
-        return {
-          id: project.gid!,
-          name: project.name ?? 'Unnamed Project',
-          description: project.resource_type ?? '',
-          item_type: ItemType.TASKS,
-          item_count: itemCount,
-        };
-      })
-    );
-    results.push(...batchResults);
-  }
-
-  return results;
+export function buildExternalSyncUnits(projects: AsanaProject[]): ExternalSyncUnit[] {
+  return projects.map((project) => ({
+    id: project.gid!,
+    name: project.name ?? 'Unnamed Project',
+    description: project.resource_type ?? '',
+    item_type: ItemType.TASKS,
+  }));
 }

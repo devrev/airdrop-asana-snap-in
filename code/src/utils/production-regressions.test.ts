@@ -19,24 +19,13 @@ describe('production error regressions', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
-  it('stops optional task-count requests after the first rate-limited batch while retaining every project', async () => {
+  it('retains every discovered project without requesting or reporting task counts', () => {
     const projects = Array.from({ length: 1000 }, (_, i) => ({ gid: `p${i}`, name: `Project ${i}` }));
-    const client = { getProjectTaskCount: jest.fn().mockRejectedValue(httpError(429)) };
-    const units = await buildExternalSyncUnits(projects, client as any);
-    expect(client.getProjectTaskCount).toHaveBeenCalledTimes(10);
+    const units = buildExternalSyncUnits(projects);
     expect(units).toHaveLength(1000);
-    expect(units[999].id).toBe('p999');
-    expect(console.warn).toHaveBeenCalledTimes(1);
-  });
-
-  it('retains successful task counts in a batch that is partly rate limited', async () => {
-    const client = { getProjectTaskCount: jest.fn()
-      .mockResolvedValueOnce({ data: { data: { num_tasks: 7 } } })
-      .mockRejectedValue(httpError(429)) };
-    const units = await buildExternalSyncUnits(Array.from({ length: 25 }, (_, i) => ({ gid: `p${i}` })), client as any);
-    expect(units[0].item_count).toBe(7);
-    expect(units[24].item_count).toBe(0);
-    expect(client.getProjectTaskCount).toHaveBeenCalledTimes(10);
+    expect(units.map((unit) => unit.id)).toEqual(projects.map((project) => project.gid));
+    expect(units.every((unit) => !Object.prototype.hasOwnProperty.call(unit, 'item_count'))).toBe(true);
+    expect(console.warn).not.toHaveBeenCalled();
   });
 
   function groupFixture() {
