@@ -9,6 +9,7 @@ import { processLoadingTask } from '@devrev/airsync-sdk';
 import { AsanaClient } from '@asana/api-client';
 import { ItemType, LinkType } from '@asana/constants';
 import { denormalizeComment, denormalizeLink, denormalizeTask } from '@asana/data-denormalization';
+import { ProjectAccessGuard } from '@utils/asana-errors';
 import { toTimestamp } from '@utils/field-extraction-helpers';
 import { handleLoadingError, resolveExternalId, resolveRef } from '@utils/loading-helpers';
 import { serializeError } from '@utils/serialize-error';
@@ -276,5 +277,14 @@ const itemTypesToLoad = [
 ];
 
 processLoadingTask<LoaderState>({
-  task: async ({ adapter }) => adapter.loadItemTypes({ itemTypesToLoad }),
+  task: async ({ adapter }) => {
+    const guard = new ProjectAccessGuard(new AsanaClient(adapter.event));
+    return guard.run(() => adapter.loadItemTypes({
+      itemTypesToLoad: itemTypesToLoad.map((itemType) => ({
+        ...itemType,
+        create: guard.protectLoading(itemType.create),
+        update: guard.protectLoading(itemType.update),
+      })),
+    }));
+  },
 });

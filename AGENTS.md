@@ -209,6 +209,15 @@ The SDK persists connector state automatically when it sends the task response; 
 - **Rate limiting (429)**: Never retried in-process, since waiting on `Retry-After` could push the worker past the Lambda hard timeout. `handleExtractionError` in `data-helpers.ts` returns `{ delay }` (Asana's `Retry-After`, or 60s if missing) and the worker returns `{ status: 'delay', delaySeconds }` so the SDK sends the phase delay event and the platform reschedules; external-sync-unit extraction has no delay event, so a 429 there fails the phase with a retry hint.
 - **Retries**: The HTTP client retries up to 3 times for network errors and 5xx responses, with exponential backoff (2s, 4s, 8s). 4xx errors, including 429, are not retried.
 
+
+### Common errors and periodic syncs
+
+`code/src/utils/asana-errors.ts` provides `describeAsanaError` and `ProjectAccessGuard`. Metadata/data/attachment extraction and both loading phases check the selected project before work, including continuation invocations. A project HTTP 404 returns `EXTERNAL_SYNC_UNIT_DELETED`; HTTP 401 returns `EXTERNAL_SYSTEM_NO_ACCESS`; required API HTTP 402/403 returns `EXTERNAL_SYSTEM_NO_PERMISSION`. Workspace project-listing HTTP 404 returns `EXTERNAL_SYSTEM_NO_ACCESS`. Set `ErrorRecord.code`; the SDK emits exactly `ERROR_CODE=<code>` and logs descriptive details separately. Snap-in manager maps these to `common / 1`, `common / 4`, or `common / 5`; activity manager switches the affected sync unit to manual immediately.
+
+Uncoded phase failures recheck project access before escalating. Metadata endpoint 404s and individual task/comment/attachment failures do not imply project deletion while the project remains accessible. Reverse-loading callbacks recheck project access on an item failure; a confirmed common error aborts loading before advancing the item cursor, and the phase guard preserves the common code across the SDK's catch/report handling. Item-specific errors otherwise retain the SDK's failed-item behavior. No DevRev artifact, mapper or download error is directly classified as an Asana authorization failure.
+
+HTTP 429 remains a delay; project/metadata/discovery checks use a positive, finite Retry-After rounded up to whole seconds or 60 seconds by default. Network errors, timeouts, 5xx responses, malformed requests and conflicts remain uncoded; normal HTTP retries still apply. An archived but accessible project is not treated as deleted or deactivated. Invalid credentials do not establish user deletion, so the connector does not emit `USER_DELETED`. The guard adds one project read per phase and additional reads when diagnosing failures. Attachment access lost after the phase's initial check may still be handled as an item failure by the SDK; the next phase or invocation checks project access again.
+
 ## Development Workflow
 
 ### Prerequisites
@@ -248,7 +257,7 @@ These are resolved at build time by `tsc-alias` and mapped in `jest.config.js` f
 
 ## Testing
 
-- **Tests**: 21 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments).
+- **Tests**: 22 test files in `code/src/**/*.test.ts` covering API client, data normalization, data denormalization, data helpers, attachment helpers, field extraction helpers, metadata helpers, permissions helpers, rich text helpers, external sync units helpers, error serialization, loading helpers, loading orchestrator, load data worker, load attachments worker, and extraction workers (ESU, metadata, data, attachments), plus common-error classification and project-access guards.
 - **Framework**: Jest with `ts-jest` preset, path aliases mapped in `jest.config.js`.
 - **Coverage reporting**: Jest uses V8 coverage to produce valid source paths with `ts-jest`. `.github/workflows/ci.yml` uploads `code/coverage/lcov.info` to Coveralls on pull requests and pushes to `main`, using `GITHUB_TOKEN` and `code` as the source base path. Enable `devrev/airsync-asana-snap-in` in the Coveralls GitHub integration before expecting reports and PR checks. The README badge displays coverage for `main`.
 - **SDK migration integration**: `code/src/sdk-migration.integration.test.ts` runs real worker threads and SDK callbacks against local HTTP servers. It checks retries, metadata failures, rate-limit seconds, timeout state/resume, mapper null/error handling and reverse-sync create/update. Only the Asana base URL is redirected; no credentials or live system access are needed.

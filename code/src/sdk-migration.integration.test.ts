@@ -55,6 +55,7 @@ describe('SDK v2 migration over HTTP', () => {
   afterAll(() => server.stop());
   beforeEach(() => {
     server.resetRoutes();
+    server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 200, body: { data: { gid: 'project' } } });
     seedState({ ...structuredClone(initialState), snapInVersionId: 'test_snap_in_version_id' });
   });
 
@@ -150,12 +151,102 @@ describe('SDK v2 migration over HTTP', () => {
       const { callback } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
       expect(callback.event_type).toBe(expected);
       if (status === 429) expect(callback.event_data.delay).toBe(37);
-      else expect(callback.event_data.error?.message).toContain('Metadata unavailable');
+      else expect(callback.event_data.error?.message).toBe('ERROR_CODE=EXTERNAL_SYSTEM_NO_PERMISSION');
       expect(server.getRequestCount('GET', fieldsPath)).toBe(1);
       expect(server.getRequestCount('GET', sectionsPath)).toBe(0);
       expect(server.getRequestCount('POST', '/file-upload-url')).toBe(0);
     }
   );
+
+  describe.each([
+    ['metadata-extraction', EventType.StartExtractingMetadata, 'METADATA_EXTRACTION'],
+    ['data-extraction', EventType.ContinueExtractingData, 'DATA_EXTRACTION'],
+    ['attachments-extraction', EventType.ContinueExtractingAttachments, 'ATTACHMENT_EXTRACTION'],
+    ['load-data', EventType.ContinueLoadingData, 'DATA_LOADING'],
+    ['load-attachments', EventType.ContinueLoadingAttachments, 'ATTACHMENT_LOADING'],
+  ] as const)('%s project access failures', (workerName, eventType, phase) => {
+    it.each([
+      [401, 'EXTERNAL_SYSTEM_NO_ACCESS'],
+      [402, 'EXTERNAL_SYSTEM_NO_PERMISSION'],
+      [403, 'EXTERNAL_SYSTEM_NO_PERMISSION'],
+      [404, 'EXTERNAL_SYNC_UNIT_DELETED'],
+    ])('emits the common error for project HTTP %i', async (status, code) => {
+      server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status,
+        body: { errors: [{ message: 'Project unavailable' }] } });
+      const { callback } = await runWorker(workerName, event(eventType));
+      expect(callback.event_type).toBe(`${phase}_ERROR`);
+      expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${code}`);
+      expect(server.getRequestCount('GET', fieldsPath)).toBe(0);
+      expect(server.getRequestCount('GET', usersPath)).toBe(0);
+      expect(server.getRequestCount('POST', '/api/1.0/tasks')).toBe(0);
+      expect(server.getRequestCount('POST', '/file-upload-url')).toBe(0);
+    });
+
+    it('delays on project rate limits without a common error', async () => {
+      server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 429,
+        headers: { 'Retry-After': '37' }, body: { errors: [] } });
+      const { callback } = await runWorker(workerName, event(eventType));
+      expect(callback.event_type).toBe(`${phase}_DELAYED`);
+      expect(callback.event_data.delay).toBe(37);
+      expect(callback.event_data.error).toBeUndefined();
+    });
+  });
+
+  it.each([
+    [401, 'EXTERNAL_SYSTEM_NO_ACCESS'],
+    [402, 'EXTERNAL_SYSTEM_NO_PERMISSION'],
+    [403, 'EXTERNAL_SYSTEM_NO_PERMISSION'],
+    [404, 'EXTERNAL_SYSTEM_NO_ACCESS'],
+  ])('emits a common error for workspace project listing HTTP %i', async (status, code) => {
+    server.setRoute({ method: 'GET', path: '/api/1.0/workspaces/workspace/projects', status, body: { errors: [] } });
+    const { callback } = await runWorker('external-sync-units-extraction', event(EventType.StartExtractingExternalSyncUnits));
+    expect(callback.event_type).toBe('EXTERNAL_SYNC_UNIT_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${code}`);
+  });
+
+  it.each([401, 403, 404])('stops reverse sync and preserves its cursor when project access changes to HTTP %i', async (status) => {
+    serveLoaderFile();
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 404, body: {} });
+    server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 200,
+      body: { data: { gid: 'project' } }, succeedThenFail: { successCount: 1, errorStatus: status } });
+    server.setRoute({ method: 'POST', path: '/api/1.0/tasks', status, body: { errors: [] } });
+    const { callback, state } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+    const code = status === 401 ? 'EXTERNAL_SYSTEM_NO_ACCESS'
+      : status === 403 ? 'EXTERNAL_SYSTEM_NO_PERMISSION' : 'EXTERNAL_SYNC_UNIT_DELETED';
+    expect(callback.event_type).toBe('DATA_LOADING_ERROR');
+    expect(callback.event_data.error?.message).toBe(`ERROR_CODE=${code}`);
+    expect(state?.sdkState.fromDevRev).toMatchObject({ filesToLoad: [{ lineToProcess: 0, completed: false }] });
+    expect(server.getRequestCount('POST', '/api/1.0/tasks')).toBe(1);
+  });
+
+  it('keeps a missing reverse-sync item as an item failure while the project is accessible', async () => {
+    serveLoaderFile();
+    server.setRoute({ method: 'GET', path: targetMapperPath, status: 404, body: {} });
+    server.setRoute({ method: 'POST', path: '/api/1.0/tasks', status: 404, body: { errors: [] } });
+    const { callback } = await runWorker('load-data', event(EventType.ContinueLoadingData));
+    expect(callback.event_type).toBe('DATA_LOADING_DONE');
+    expect(callback.event_data.error).toBeUndefined();
+    expect(callback.event_data.reports).toMatchObject([{ item_type: 'tasks', failed: 1 }]);
+  });
+
+  it('emits deletion when the project disappears after the initial metadata check', async () => {
+    server.setRoute({ method: 'GET', path: '/api/1.0/projects/project', status: 200,
+      body: { data: { gid: 'project' } }, succeedThenFail: { successCount: 1, errorStatus: 404 } });
+    server.setRoute({ method: 'GET', path: fieldsPath, status: 404, body: { errors: [] } });
+    const { callback } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
+    expect(callback.event_type).toBe('METADATA_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).toBe('ERROR_CODE=EXTERNAL_SYNC_UNIT_DELETED');
+    expect(server.getRequestCount('GET', '/api/1.0/projects/project')).toBe(2);
+    expect(server.getRequestCount('GET', sectionsPath)).toBe(0);
+  });
+
+  it('does not label a metadata 404 as project deletion when the project is accessible', async () => {
+    server.setRoute({ method: 'GET', path: fieldsPath, status: 404, body: { errors: [] } });
+    const { callback } = await runWorker('metadata-extraction', event(EventType.StartExtractingMetadata));
+    expect(callback.event_type).toBe('METADATA_EXTRACTION_ERROR');
+    expect(callback.event_data.error?.message).not.toContain('ERROR_CODE=');
+    expect(server.getRequestCount('GET', '/api/1.0/projects/project')).toBe(2);
+  });
 
   it('uses the SDK metadata timeout default and emits exactly one progress callback', async () => {
     server.setRoute({ method: 'GET', path: fieldsPath, status: 200, body: { data: [] }, delay: 100 });

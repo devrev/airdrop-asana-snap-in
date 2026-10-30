@@ -275,10 +275,19 @@ The `AsanaClient` uses `axios-retry` (3 attempts, exponential backoff 2s, 4s, 8s
 | 201  | Created               | Process response (loading)                   |
 | 400  | Bad Request           | Log and report error                         |
 | 401  | Unauthorized          | Token expired or invalid; re-authenticate    |
-| 403  | Forbidden             | Insufficient permissions; log and skip       |
-| 404  | Not Found             | Object deleted or inaccessible; log and skip |
+| 403  | Forbidden             | Required API permission failure: common error; individual item failures stay scoped |
+| 404  | Not Found             | Confirm project deletion before stopping sync; missing items stay scoped |
 | 429  | Too Many Requests     | Emit `*_DELAYED` (ESU phase: fail)           |
 | 500  | Internal Server Error | Retry with exponential backoff               |
+
+
+### Common errors and periodic syncs
+
+`code/src/utils/asana-errors.ts` provides `describeAsanaError` and `ProjectAccessGuard`. Metadata/data/attachment extraction and both loading phases check the selected project before work, including continuation invocations. A project HTTP 404 returns `EXTERNAL_SYNC_UNIT_DELETED`; HTTP 401 returns `EXTERNAL_SYSTEM_NO_ACCESS`; required API HTTP 402/403 returns `EXTERNAL_SYSTEM_NO_PERMISSION`. Workspace project-listing HTTP 404 returns `EXTERNAL_SYSTEM_NO_ACCESS`. Set `ErrorRecord.code`; the SDK emits exactly `ERROR_CODE=<code>` and logs descriptive details separately. Snap-in manager maps these to `common / 1`, `common / 4`, or `common / 5`; activity manager switches the affected sync unit to manual immediately.
+
+Uncoded phase failures recheck project access before escalating. Metadata endpoint 404s and individual task/comment/attachment failures do not imply project deletion while the project remains accessible. Reverse-loading callbacks recheck project access on an item failure; a confirmed common error aborts loading before advancing the item cursor, and the phase guard preserves the common code across the SDK's catch/report handling. Item-specific errors otherwise retain the SDK's failed-item behavior. No DevRev artifact, mapper or download error is directly classified as an Asana authorization failure.
+
+HTTP 429 remains a delay; project/metadata/discovery checks use a positive, finite Retry-After rounded up to whole seconds or 60 seconds by default. Network errors, timeouts, 5xx responses, malformed requests and conflicts remain uncoded; normal HTTP retries still apply. An archived but accessible project is not treated as deleted or deactivated. Invalid credentials do not establish user deletion, so the connector does not emit `USER_DELETED`. The guard adds one project read per phase and additional reads when diagnosing failures. Attachment access lost after the phase's initial check may still be handled as an item failure by the SDK; the next phase or invocation checks project access again.
 
 ## 2.5 Metadata Extraction
 
@@ -405,7 +414,7 @@ The `updateComment` handler resolves the story GID and updates its text through 
 
 ## SDK worker contract
 
-The connector requires Node.js 20+ and `@devrev/airsync-sdk`. Extraction workers register with `processExtractionTask`; loading workers use `processLoadingTask`. All return a `TaskResult`; attachment streaming and loader callbacks return status unions with `delaySeconds` or error records. Attachment extraction and both loading workers return SDK streaming/loading calls directly, preserving progress, delays and failures without redundant start/completion logs. The SDK owns response emission, timeout defaults, and separate SDK state. Existing ESU repo configuration is retained.
+The connector requires Node.js 20+ and `@devrev/airsync-sdk`. Extraction workers register with `processExtractionTask`; loading workers use `processLoadingTask`. All return a `TaskResult`; attachment streaming and loader callbacks return status unions with `delaySeconds` or error records. Attachment extraction and both loading workers preserve SDK streaming/loading results through `ProjectAccessGuard`; common project-access errors become phase failures, while progress and delays pass through. The SDK owns response emission, timeout defaults, and separate SDK state. Existing ESU repo configuration is retained.
 
 Mapper lookups return an unwrapped response or null. `resolveExternalId` logs and returns null when missing or failed; extraction keeps unmapped attachments and keeps files on lookup failures. The sync window remains `extract_from`/`extract_to`.
 
@@ -416,3 +425,5 @@ Upgrade between runs after v1 workers finish. Once v2 persists state, rollback r
 ### Migration integration verification
 
 `code/src/sdk-migration.integration.test.ts` exercises the installed SDK and connector workers in real worker threads, with both platform and Asana HTTP endpoints served locally. It covers transient 5xx retries and request parameters; metadata failure short-circuiting; metadata timeout defaults; 429 delay seconds and the 60-second fallback; ESU retry hints; flat v1 state conversion; data timeout and continuation from the persisted next-page offset; mapper records, 404/null and HTTP failures; and real loader create/update/429/error outcomes. Each worker invocation must produce exactly one platform callback. These tests require no live credentials and run with the standard Jest suite.
+
+Common-error regressions cover real worker callbacks for project 401/402/403/404 and 429 in all five project phases, workspace discovery errors, and reverse access loss without advancing the failed item cursor. Unit tests cover generic/transient failures, Retry-After validation and item failures with an accessible project.

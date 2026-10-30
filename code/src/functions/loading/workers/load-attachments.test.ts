@@ -4,6 +4,7 @@ import { AsanaClient } from '@asana/api-client';
 import { handleLoadingError, resolveExternalId } from '@utils/loading-helpers';
 
 jest.mock('@devrev/airsync-sdk', () => ({
+  ...jest.requireActual('@devrev/airsync-sdk'),
   processLoadingTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
@@ -30,6 +31,7 @@ const captured = mockProcessTask.mock.calls[0][0];
 const taskFn: (params: { adapter: any }) => Promise<any> = captured.task;
 
 const mockAsanaClient = {
+  getProject: jest.fn().mockResolvedValue({}),
   createTaskAttachment: jest.fn(),
   getStory: jest.fn(),
   updateTaskComment: jest.fn(),

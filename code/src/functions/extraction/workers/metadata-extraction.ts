@@ -3,6 +3,7 @@ import { ExternalDomainMetadata, processExtractionTask, TaskResult } from '@devr
 import { AsanaClient } from '@asana/api-client';
 import { ItemType } from '@asana/constants';
 import baseExternalDomainMetadata from '@asana/external_domain_metadata.json';
+import { ProjectAccessGuard } from '@utils/asana-errors';
 import type { ExtractListResponse } from '@utils/data-helpers';
 import {
   enrichMetadataWithCustomFields,
@@ -34,19 +35,21 @@ processExtractionTask<ExtractorState>({
     adapter.initializeRepos([{ itemType: ItemType.EXTERNAL_DOMAIN_METADATA }]);
 
     const asanaClient = new AsanaClient(adapter.event);
-    const metadata: ExternalDomainMetadata = structuredClone(baseExternalDomainMetadata) as ExternalDomainMetadata;
+    return new ProjectAccessGuard(asanaClient).run(async () => {
+      const metadata: ExternalDomainMetadata = structuredClone(baseExternalDomainMetadata) as ExternalDomainMetadata;
 
-    const customFieldsResult = await enrichMetadataWithCustomFields(metadata, asanaClient);
-    const customFieldsFailure = getEnrichmentFailure('custom fields', customFieldsResult);
-    if (customFieldsFailure) return customFieldsFailure;
+      const customFieldsResult = await enrichMetadataWithCustomFields(metadata, asanaClient);
+      const customFieldsFailure = getEnrichmentFailure('custom fields', customFieldsResult);
+      if (customFieldsFailure) return customFieldsFailure;
 
-    const sectionsResult = await enrichMetadataWithSections(metadata, asanaClient);
-    const sectionsFailure = getEnrichmentFailure('sections', sectionsResult);
-    if (sectionsFailure) return sectionsFailure;
+      const sectionsResult = await enrichMetadataWithSections(metadata, asanaClient);
+      const sectionsFailure = getEnrichmentFailure('sections', sectionsResult);
+      if (sectionsFailure) return sectionsFailure;
 
-    enrichMetadataWithSubtaskStages(metadata);
+      enrichMetadataWithSubtaskStages(metadata);
 
-    await adapter.getRepo(ItemType.EXTERNAL_DOMAIN_METADATA)?.push([metadata]);
-    return { status: 'success' };
+      await adapter.getRepo(ItemType.EXTERNAL_DOMAIN_METADATA)?.push([metadata]);
+      return { status: 'success' };
+    });
   },
 });

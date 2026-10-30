@@ -5,6 +5,7 @@ import { AsanaClient } from '@asana/api-client';
 import { handleExtractionError } from '@utils/data-helpers';
 
 jest.mock('@devrev/airsync-sdk', () => ({
+  ...jest.requireActual('@devrev/airsync-sdk'),
   processExtractionTask: jest.fn(),
 }));
 jest.mock('axios');
@@ -37,7 +38,7 @@ function createMockAdapter(streamAttachmentsReturn?: any) {
 describe('attachments-extraction worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    MockAsanaClient.mockImplementation(() => ({ getAttachment: mockGetAttachment }) as any);
+    MockAsanaClient.mockImplementation(() => ({ getAttachment: mockGetAttachment, getProject: jest.fn().mockResolvedValue({}) }) as any);
   });
 
   describe('task', () => {
@@ -114,7 +115,7 @@ describe('attachments-extraction worker', () => {
       await streamFn({ item: { id: 'att1', url: staleUrl }, event });
       await streamFn({ item: { id: 'att2', url: staleUrl }, event });
 
-      expect(MockAsanaClient).toHaveBeenCalledTimes(0);
+      expect(MockAsanaClient).toHaveBeenCalledTimes(1);
       expect(mockGetAttachment).toHaveBeenCalledTimes(2);
     });
 

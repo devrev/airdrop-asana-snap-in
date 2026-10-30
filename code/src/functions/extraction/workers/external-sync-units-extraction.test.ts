@@ -6,6 +6,7 @@ import { buildExternalSyncUnits, checkUserWorkspaceRole, fetchAllProjects } from
 import { serializeError } from '@utils/serialize-error';
 
 jest.mock('@devrev/airsync-sdk', () => ({
+  ...jest.requireActual('@devrev/airsync-sdk'),
   processExtractionTask: jest.fn(),
   AirSyncDefaultItemTypes: jest.requireActual('@devrev/airsync-sdk').AirSyncDefaultItemTypes,
 }));

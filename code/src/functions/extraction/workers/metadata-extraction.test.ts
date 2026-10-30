@@ -9,6 +9,7 @@ import {
 } from '@utils/metadata-helpers';
 
 jest.mock('@devrev/airsync-sdk', () => ({
+  ...jest.requireActual('@devrev/airsync-sdk'),
   processExtractionTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
@@ -44,7 +45,7 @@ function createMockAdapter() {
 describe('metadata-extraction worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (AsanaClient as unknown as jest.Mock).mockImplementation(() => ({}));
+    (AsanaClient as unknown as jest.Mock).mockImplementation(() => ({ getProject: jest.fn().mockResolvedValue({}) }));
     mockEnrichCustomFields.mockResolvedValue(undefined);
     mockEnrichSections.mockResolvedValue(undefined);
     mockEnrichSubtaskStages.mockReturnValue(undefined);

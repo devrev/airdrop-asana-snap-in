@@ -14,6 +14,7 @@ import { extractPermissions } from '@utils/permissions-helpers';
 import { type ExtractorState,initialState } from '../index';
 
 jest.mock('@devrev/airsync-sdk', () => ({
+  ...jest.requireActual('@devrev/airsync-sdk'),
   processExtractionTask: jest.fn(),
 }));
 jest.mock('@asana/api-client');
@@ -63,7 +64,7 @@ function createMockAdapter(stateOverrides?: Partial<ExtractorState>) {
 describe('data-extraction worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (AsanaClient as unknown as jest.Mock).mockImplementation(() => ({}));
+    (AsanaClient as unknown as jest.Mock).mockImplementation(() => ({ getProject: jest.fn().mockResolvedValue({}) }));
     mockExtractUsers.mockResolvedValue(undefined);
     mockExtractTags.mockResolvedValue(undefined);
     mockExtractGroups.mockResolvedValue(undefined);
